@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "faustus-friend",
+  "productName": "Faustus Friend",
   "version": "0.1.0",
   "identifier": "com.naear.faustus-friend",
   "build": {
@@ -12,9 +12,15 @@
   "app": {
     "windows": [
       {
-        "title": "faustus-friend",
-        "width": 800,
-        "height": 600
+        "label": "main",
+        "title": "Faustus Friend",
+        "width": 340,
+        "height": 480,
+        "resizable": true,
+        "alwaysOnTop": true,
+        "decorations": true,
+        "skipTaskbar": false,
+        "shadow": true
       }
     ],
     "security": {

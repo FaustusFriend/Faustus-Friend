@@ -1,14 +1,41 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use tauri::Manager;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+
+fn toggle_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let visible = window.is_visible().unwrap_or(false);
+        if visible {
+            let _ = window.hide();
+        } else {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+}
+
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn register_hotkey(app: tauri::AppHandle, shortcut: String) -> Result<(), String> {
+    let gs = app.global_shortcut();
+    gs.unregister_all().map_err(|e| e.to_string())?;
+
+    let parsed: Shortcut = shortcut.parse().map_err(|e| format!("Invalid shortcut '{shortcut}': {e:?}"))?;
+    gs.on_shortcut(parsed, move |app, _shortcut, event| {
+        if event.state() == ShortcutState::Pressed {
+            toggle_main_window(app);
+        }
+    })
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .invoke_handler(tauri::generate_handler![register_hotkey])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
