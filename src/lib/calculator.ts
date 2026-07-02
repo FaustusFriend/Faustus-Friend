@@ -1,0 +1,237 @@
+// Pure calculator engine for the Buying/Selling/Currency Conversion tools.
+// All trade math uses BigInt (integer cents / rational numerator-denominator
+// pairs) so results never depend on JavaScript floating-point rounding.
+
+export type CalcResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: string };
+
+function ok<T>(value: T): CalcResult<T> {
+  return { ok: true, value };
+}
+
+function fail<T>(error: string): CalcResult<T> {
+  return { ok: false, error };
+}
+
+const DECIMAL_PATTERN = /^\d+(\.\d+)?$/;
+
+interface ParsedDecimal {
+  /** The decimal value scaled up to an integer, e.g. "1.60" -> 160n with decimals=2 */
+  scaled: bigint;
+  decimals: number;
+}
+
+function parseDecimal(
+  input: string | number,
+  fieldName: string,
+  maxDecimals?: number,
+): CalcResult<ParsedDecimal> {
+  if (input === null || input === undefined) {
+    return fail(`${fieldName} is required.`);
+  }
+  const trimmed = String(input).trim();
+  if (trimmed.length === 0) {
+    return fail(`${fieldName} is required.`);
+  }
+  if (!DECIMAL_PATTERN.test(trimmed)) {
+    return fail(`${fieldName} must be a positive number.`);
+  }
+
+  const [wholePart, fracPart = ""] = trimmed.split(".");
+  if (maxDecimals !== undefined && fracPart.length > maxDecimals) {
+    return fail(`${fieldName} supports at most ${maxDecimals} decimal place${maxDecimals === 1 ? "" : "s"}.`);
+  }
+
+  const decimals = fracPart.length;
+  const scaled = BigInt(wholePart + fracPart);
+  return ok({ scaled, decimals });
+}
+
+function parseWholeNumber(input: string | number, fieldName: string): CalcResult<bigint> {
+  if (input === null || input === undefined) {
+    return fail(`${fieldName} is required.`);
+  }
+  const trimmed = String(input).trim();
+  if (trimmed.length === 0) {
+    return fail(`${fieldName} is required.`);
+  }
+  if (!/^\d+$/.test(trimmed)) {
+    return fail(`${fieldName} must be a whole number.`);
+  }
+  const value = BigInt(trimmed);
+  if (value <= 0n) {
+    return fail(`${fieldName} must be greater than zero.`);
+  }
+  return ok(value);
+}
+
+/**
+ * Rounds numerator/denominator to `decimalPlaces` decimals (round-half-up)
+ * and formats it as a display string, using only BigInt arithmetic.
+ */
+function formatFraction(numerator: bigint, denominator: bigint, decimalPlaces = 2): string {
+  if (denominator === 0n) return (0).toFixed(decimalPlaces);
+
+  const negative = (numerator < 0n) !== (denominator < 0n);
+  const numAbs = numerator < 0n ? -numerator : numerator;
+  const denAbs = denominator < 0n ? -denominator : denominator;
+
+  const scale = 10n ** BigInt(decimalPlaces);
+  const scaledNumerator = numAbs * scale;
+  let result = scaledNumerator / denAbs;
+  const remainder = scaledNumerator % denAbs;
+  if (remainder * 2n >= denAbs) {
+    result += 1n;
+  }
+
+  const intPart = result / scale;
+  const fracPart = result % scale;
+  const sign = negative && result !== 0n ? "-" : "";
+  return `${sign}${intPart}.${fracPart.toString().padStart(decimalPlaces, "0")}`;
+}
+
+/**
+ * Parses a "Price per Item" input. Prices support at most 2 decimal places
+ * and must be strictly greater than zero. Returns the price in integer cents.
+ */
+export function parsePricePerItem(input: string | number): CalcResult<bigint> {
+  const parsed = parseDecimal(input, "Price per item", 2);
+  if (!parsed.ok) return parsed;
+
+  const scaleUp = 2 - parsed.value.decimals;
+  const cents = parsed.value.scaled * 10n ** BigInt(scaleUp);
+
+  if (cents <= 0n) {
+    return fail("Price per item must be greater than zero.");
+  }
+  return ok(cents);
+}
+
+export interface BuyTradeResult {
+  /** Whole-number currency amount actually spent (never exceeds the budget). */
+  spend: number;
+  /** Whole-number item quantity received (maximized). */
+  receive: number;
+  /** Realized price per item (spend / receive), rounded to 2 decimals. */
+  approxRate: string;
+}
+
+/**
+ * Given a currency budget and a price per item, returns the maximum whole
+ * number of items purchasable without exceeding the budget, along with the
+ * matching whole-number spend.
+ */
+export function optimizeBuyTrade(
+  currencyToSpend: string | number,
+  pricePerItem: string | number,
+): CalcResult<BuyTradeResult> {
+  const budgetResult = parseWholeNumber(currencyToSpend, "Currency to spend");
+  if (!budgetResult.ok) return budgetResult;
+
+  const priceResult = parsePricePerItem(pricePerItem);
+  if (!priceResult.ok) return priceResult;
+
+  const budget = budgetResult.value;
+  const priceCents = priceResult.value;
+
+  const budgetCents = budget * 100n;
+  const receive = budgetCents / priceCents; // floor division, both positive
+
+  if (receive === 0n) {
+    return ok({ spend: 0, receive: 0, approxRate: "0.00" });
+  }
+
+  const spendCents = receive * priceCents;
+  const spend = spendCents / 100n; // floor to a whole currency amount
+
+  return ok({
+    spend: Number(spend),
+    receive: Number(receive),
+    approxRate: formatFraction(spendCents, receive * 100n),
+  });
+}
+
+export interface SellTradeResult {
+  /** Whole-number item quantity sold (always the full amount offered). */
+  sell: number;
+  /** Whole-number currency amount received (maximized). */
+  receive: number;
+  /** Realized price per item (receive / sell), rounded to 2 decimals. */
+  approxRate: string;
+}
+
+/**
+ * Given a whole number of items to sell and a price per item, returns the
+ * currency received. Since price is positive, receive is maximized by
+ * selling all offered items — the optimization is in how the whole-number
+ * currency payout is derived (floored, never rounded up past the true value).
+ */
+export function optimizeSellTrade(
+  itemsToSell: string | number,
+  pricePerItem: string | number,
+): CalcResult<SellTradeResult> {
+  const itemsResult = parseWholeNumber(itemsToSell, "Items to sell");
+  if (!itemsResult.ok) return itemsResult;
+
+  const priceResult = parsePricePerItem(pricePerItem);
+  if (!priceResult.ok) return priceResult;
+
+  const items = itemsResult.value;
+  const priceCents = priceResult.value;
+
+  const totalCents = items * priceCents; // exact, no rounding needed here
+  const receive = totalCents / 100n; // floor to a whole currency amount
+
+  return ok({
+    sell: Number(items),
+    receive: Number(receive),
+    approxRate: receive === 0n ? "0.00" : formatFraction(receive * 100n, items * 100n),
+  });
+}
+
+export type CurrencyDirection = "chaosToDivine" | "divineToChaos";
+
+export interface ConvertCurrencyInput {
+  /** How many Chaos Orbs one Divine Orb is worth. */
+  exchangeRate: string | number;
+  amount: string | number;
+  direction: CurrencyDirection;
+}
+
+/**
+ * Converts between Chaos Orbs and Divine Orbs using a Chaos-per-Divine
+ * exchange rate. This is a simple ratio conversion with no whole-number
+ * trade optimization.
+ */
+export function convertCurrency(input: ConvertCurrencyInput): CalcResult<string> {
+  const rateResult = parseDecimal(input.exchangeRate, "Exchange rate");
+  if (!rateResult.ok) return rateResult;
+  if (rateResult.value.scaled <= 0n) {
+    return fail("Exchange rate must be greater than zero.");
+  }
+
+  const amountResult = parseDecimal(input.amount, "Amount");
+  if (!amountResult.ok) return amountResult;
+  if (amountResult.value.scaled <= 0n) {
+    return fail("Amount must be greater than zero.");
+  }
+
+  const { scaled: rateScaled, decimals: rateDecimals } = rateResult.value;
+  const { scaled: amountScaled, decimals: amountDecimals } = amountResult.value;
+
+  let numerator: bigint;
+  let denominator: bigint;
+
+  if (input.direction === "divineToChaos") {
+    // chaos = divineAmount * rate
+    numerator = amountScaled * rateScaled;
+    denominator = 10n ** BigInt(amountDecimals + rateDecimals);
+  } else {
+    // divine = chaosAmount / rate
+    numerator = amountScaled * 10n ** BigInt(rateDecimals);
+    denominator = rateScaled * 10n ** BigInt(amountDecimals);
+  }
+
+  return ok(formatFraction(numerator, denominator, 2));
+}
