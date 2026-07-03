@@ -16,13 +16,20 @@ function fail<T>(error: string): CalcResult<T> {
 
 const DECIMAL_PATTERN = /^\d+(\.\d+)?$/;
 
-interface ParsedDecimal {
+export interface ParsedDecimal {
   /** The decimal value scaled up to an integer, e.g. "1.60" -> 160n with decimals=2 */
   scaled: bigint;
   decimals: number;
 }
 
-function parseDecimal(
+/**
+ * Exported (alongside {@link formatFraction}) so UI-layer components can
+ * reuse the same decimal parsing/rounding rules — e.g. the dual-entry
+ * exchange-rate input — without duplicating or diverging from this engine's
+ * validation and rounding behavior. Not itself part of the trade
+ * optimization algorithms.
+ */
+export function parseDecimal(
   input: string | number,
   fieldName: string,
   maxDecimals?: number,
@@ -69,8 +76,9 @@ function parseWholeNumber(input: string | number, fieldName: string): CalcResult
 /**
  * Rounds numerator/denominator to `decimalPlaces` decimals (round-half-up)
  * and formats it as a display string, using only BigInt arithmetic.
+ * Exported for reuse by UI-layer formatting (see {@link parseDecimal}).
  */
-function formatFraction(numerator: bigint, denominator: bigint, decimalPlaces = 2): string {
+export function formatFraction(numerator: bigint, denominator: bigint, decimalPlaces = 2): string {
   if (denominator === 0n) return (0).toFixed(decimalPlaces);
 
   const negative = (numerator < 0n) !== (denominator < 0n);
