@@ -1,6 +1,9 @@
 use tauri::Manager;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
+mod clipboard_queue;
+use clipboard_queue::{cancel_clipboard_queue, start_clipboard_queue};
+
 fn toggle_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let visible = window.is_visible().unwrap_or(false);
@@ -35,7 +38,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![register_hotkey])
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .setup(|app| {
+            clipboard_queue::init(&app.handle().clone());
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            register_hotkey,
+            start_clipboard_queue,
+            cancel_clipboard_queue
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
