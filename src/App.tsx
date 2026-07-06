@@ -5,6 +5,7 @@ import { useClipboardQueue } from "./lib/clipboardQueue";
 import { BuyingSection } from "./components/BuyingSection";
 import { SellingSection } from "./components/SellingSection";
 import { ConversionSection } from "./components/ConversionSection";
+import { ScratchpadSection } from "./components/ScratchpadSection";
 import { SettingsPanel } from "./components/SettingsPanel";
 import "./App.css";
 
@@ -54,6 +55,9 @@ function App() {
 
             <h2 className="section-heading">Currency Conversion</h2>
             <ConversionSection />
+
+            <h2 className="section-heading">Scratchpad</h2>
+            <ScratchpadSection />
           </>
         )}
         {hotkeyStatus && <p className="status">{hotkeyStatus}</p>}
