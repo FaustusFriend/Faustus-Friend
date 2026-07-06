@@ -1,11 +1,50 @@
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 400;
+  --bg-card: #0a0908;
+  --bg-header: #100d09;
+  --bg-inset: #070605;
+  --bg-panel: #0d0b08;
+  --bg-cell: #080706;
 
-  color: #f0f0f0;
-  background-color: #1e1e1e;
+  --gold: #c8aa6e;
+  --gold-title: #d8bd7d;
+  --gold-bright: #e8cd8b;
+  --gold-hover: #f3dda0;
+
+  --text: #e6d7b0;
+  --text-cell: #d0c096;
+  --text-muted: #9a8f75;
+  --text-dim: #8f8267;
+  --text-faint: #7c7159;
+  --text-inactive: #6f6852;
+
+  --accent-buy: #c3cf5a;
+  --accent-sell: #d99a5b;
+  --accent-buy-bg: rgba(150, 170, 60, 0.15);
+  --accent-sell-bg: rgba(180, 110, 50, 0.15);
+
+  --error: #d9503f;
+
+  --border-gold: rgba(200, 170, 110, 0.2);
+  --border-gold-soft: rgba(200, 170, 110, 0.14);
+  --border-gold-strong: rgba(200, 170, 110, 0.35);
+
+  --radius: 2px;
+  --radius-card: 3px;
+
+  --font-display: "Cinzel", serif;
+  --font-ui: "Hanken Grotesk", system-ui, sans-serif;
+
+  --space-row-gap: 7px;
+  --space-section: 14px;
+
+  font-family: var(--font-ui);
+  font-size: 13.5px;
+  line-height: 1.4;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+
+  color: var(--text);
+  background-color: var(--bg-card);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -14,19 +53,30 @@
   -webkit-text-size-adjust: 100%;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html,
 body,
 #root {
   margin: 0;
+  width: 100%;
   height: 100%;
+  overflow-x: hidden;
 }
 
 .overlay {
   display: flex;
   flex-direction: column;
+  width: 100%;
   height: 100vh;
-  background-color: #1e1e1ecc;
-  border: 1px solid #3a3a3a;
+  background-color: var(--bg-card);
+  border: 1px solid rgba(200, 170, 110, 0.22);
+  border-radius: var(--radius-card);
+  overflow: hidden;
   user-select: none;
 }
 
@@ -34,75 +84,106 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
-  background-color: #141414;
+  padding: 9px 12px;
+  background-color: var(--bg-header);
+  border-bottom: 1px solid rgba(200, 170, 110, 0.22);
   cursor: move;
+  flex-shrink: 0;
+}
+
+.overlay-title-group {
+  display: flex;
+  align-items: center;
+}
+
+.overlay-title-glyph {
+  margin-right: 9px;
+  color: var(--gold);
+  font-size: 5px;
+  transform: rotate(45deg);
+  line-height: 1;
 }
 
 .overlay-title {
+  font-family: var(--font-display);
+  font-size: 12px;
   font-weight: 600;
-  font-size: 0.95em;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-title);
 }
 
 .icon-button {
   background: transparent;
   border: none;
   box-shadow: none;
-  color: #f0f0f0;
+  color: var(--text-dim);
   cursor: pointer;
-  font-size: 1.1em;
-  padding: 2px 6px;
+  font-size: 13px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
 }
 
 .icon-button:hover {
-  color: #8fb8ff;
+  color: var(--gold-title);
 }
 
 .panel,
 .content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-section);
   padding: 12px;
+  min-width: 0;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .section-heading {
-  margin: 4px 0 0;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #3a3a3a;
-  font-size: 0.85em;
-  font-weight: 600;
-  color: #8fb8ff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
 }
 
-.section-heading:first-child {
-  margin-top: 0;
+.section-heading::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-gold-soft);
 }
 
 .section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-row-gap);
+  min-width: 0;
 }
 
 .exchange-rate {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
+  gap: var(--space-row-gap);
+  padding: 0;
+  border: none;
+  background: none;
 }
 
 .exchange-rate-label {
-  font-size: 0.85em;
-  color: #cfcfcf;
-  font-weight: 600;
+  display: none;
 }
 
 .field-nested {
-  padding-left: 4px;
+  padding-left: 0;
 }
 
 .result-block {
@@ -110,8 +191,9 @@ body,
   flex-direction: column;
   gap: 6px;
   padding: 8px 10px;
-  border-radius: 6px;
-  background-color: #262626;
+  border-radius: var(--radius);
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-gold);
 }
 
 .result-row {
@@ -122,119 +204,189 @@ body,
 
 .result-label {
   flex: 1;
-  font-size: 0.8em;
-  color: #9a9a9a;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 
 .result-value {
-  font-size: 1.05em;
+  font-size: 15px;
   font-weight: 600;
-  min-width: 3ch;
+  min-width: 70px;
   text-align: right;
+  color: var(--text);
+}
+
+.result-value-buy {
+  color: var(--accent-buy);
+}
+
+.result-value-sell {
+  color: var(--accent-sell);
 }
 
 .copy-button {
-  border-radius: 5px;
-  border: 1px solid #3a3a3a;
-  background-color: #2a2a2a;
-  color: #f0f0f0;
-  font-size: 0.75em;
-  padding: 0.3em 0.6em;
+  border-radius: var(--radius);
+  border: 1px solid rgba(200, 170, 110, 0.22);
+  background-color: transparent;
+  color: #b39a67;
+  font-size: 11px;
+  width: 26px;
+  height: 22px;
+  padding: 0;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .copy-button:disabled {
-  color: #6a6a6a;
+  color: var(--text-inactive);
   cursor: not-allowed;
 }
 
 .copy-button:not(:disabled):hover {
-  border-color: #8fb8ff;
-  color: #8fb8ff;
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.secondary-button {
+  align-self: flex-start;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-gold-soft);
+  background-color: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.secondary-button:hover {
+  border-color: var(--gold);
+  color: var(--gold);
 }
 
 .error {
-  font-size: 0.78em;
-  color: #ff8a8a;
+  font-size: 11px;
+  color: var(--error);
   margin: 0;
 }
 
 .scratchpad-textarea {
-  min-height: 140px;
+  min-height: 80px;
   resize: vertical;
-  border-radius: 6px;
-  border: 1px solid #3a3a3a;
-  padding: 0.5em 0.7em;
-  font-size: 0.9em;
-  font-family: inherit;
-  line-height: 1.4;
-  color: #f0f0f0;
-  background-color: #2a2a2a;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-gold);
+  padding: 8px 9px;
+  font-size: 12.5px;
+  font-family: var(--font-ui);
+  line-height: 1.5;
+  color: var(--text);
+  background-color: var(--bg-inset);
 }
 
 .scratchpad-textarea:focus {
-  outline: 1px solid #8fb8ff;
+  outline: none;
+  border-color: var(--gold);
 }
 
 .field {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.85em;
-  color: #cfcfcf;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: var(--space-row-gap);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field > span:first-child {
+  flex: 1;
+}
+
+.field input {
+  flex: none;
+  width: 128px;
+}
+
+.button-row {
+  display: flex;
+  flex: none;
+  gap: 6px;
 }
 
 input {
-  border-radius: 6px;
-  border: 1px solid #3a3a3a;
-  padding: 0.5em 0.7em;
-  font-size: 1em;
-  font-family: inherit;
-  color: #f0f0f0;
-  background-color: #2a2a2a;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-gold);
+  padding: 5px 8px;
+  font-size: 13.5px;
+  font-family: var(--font-ui);
+  color: var(--text);
+  background-color: var(--bg-inset);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+input::placeholder {
+  color: var(--text-inactive);
 }
 
 input:focus {
-  outline: 1px solid #8fb8ff;
+  outline: none;
+  border-color: var(--gold);
 }
 
 .primary-button {
-  border-radius: 6px;
-  border: none;
-  padding: 0.6em 1em;
-  font-size: 0.95em;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-gold-strong);
+  padding: 8px;
+  font-size: 12px;
   font-weight: 600;
-  font-family: inherit;
-  color: #101010;
-  background-color: #8fb8ff;
+  font-family: var(--font-ui);
+  letter-spacing: 0.06em;
+  color: var(--gold-bright);
+  background: linear-gradient(#1e1810, #141009);
   cursor: pointer;
 }
 
 .primary-button:disabled {
-  background-color: #4a4a4a;
-  color: #8a8a8a;
+  border-color: var(--border-gold-soft);
+  color: var(--text-inactive);
+  background: var(--bg-panel);
   cursor: not-allowed;
 }
 
 .primary-button:not(:disabled):hover {
-  background-color: #a8c8ff;
+  border-color: var(--gold);
+  color: var(--gold-hover);
 }
 
 .hint {
-  font-size: 0.75em;
-  color: #9a9a9a;
+  font-size: 10.5px;
+  color: var(--text-faint);
   margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid rgba(200, 170, 110, 0.12);
 }
 
 .status {
-  font-size: 0.8em;
-  color: #ffd479;
+  font-size: 11px;
+  color: var(--text-faint);
   margin: 0;
 }
 
 .tab-bar {
   display: flex;
-  border-bottom: 1px solid #3a3a3a;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-gold-soft);
   flex-shrink: 0;
 }
 
@@ -244,37 +396,60 @@ input:focus {
   border: none;
   box-shadow: none;
   border-radius: 0;
-  color: #9a9a9a;
-  font-size: 0.85em;
+  border-bottom: 2px solid transparent;
+  color: var(--text-inactive);
+  font-family: var(--font-ui);
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   padding: 8px 4px;
   cursor: pointer;
 }
 
 .tab:hover {
-  color: #f0f0f0;
+  color: var(--gold-title);
 }
 
 .tab-active {
-  color: #8fb8ff;
-  border-bottom: 2px solid #8fb8ff;
+  color: #dcbd7d;
+  border-bottom-color: var(--gold);
 }
 
 .grid-scroll {
-  max-height: 320px;
+  width: 100%;
+  min-width: 0;
+  max-width: 360px;
+  max-height: 185px;
   overflow: auto;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius);
   outline: none;
 }
 
+/* Wide mode has the room, so let the grid use whatever width the app shell
+   actually has instead of the compact-window column cap. Safe even if a
+   native resize call failed silently, since this is relative to the real
+   rendered container — it can never push the box past 100% and reintroduce
+   app-level horizontal scroll. */
+.overlay-wide .grid-scroll {
+  max-width: 100%;
+}
+
+.grid-scroll-expanded {
+  max-width: none;
+  max-height: 520px;
+}
+
 .grid-scroll:focus {
-  border-color: #8fb8ff;
+  border-color: var(--gold);
 }
 
 .grid-table {
+  width: 100%;
   border-collapse: collapse;
-  font-size: 0.78em;
+  font-family: var(--font-ui);
+  font-size: 11px;
 }
 
 .grid-corner {
@@ -282,17 +457,20 @@ input:focus {
   top: 0;
   left: 0;
   z-index: 2;
-  background-color: #141414;
+  background-color: var(--bg-panel);
+  border-bottom: 1px solid var(--border-gold-soft);
 }
 
 .grid-header-cell {
   position: sticky;
   top: 0;
-  background-color: #141414;
-  color: #9a9a9a;
-  font-weight: 600;
-  padding: 4px 6px;
-  border: 1px solid #3a3a3a;
+  background-color: var(--bg-panel);
+  color: var(--text-dim);
+  font-weight: 400;
+  text-align: center;
+  padding: 6px 3px;
+  border: none;
+  border-bottom: 1px solid var(--border-gold-soft);
   min-width: 28px;
 }
 
@@ -301,27 +479,36 @@ input:focus {
   left: 0;
   top: auto;
   z-index: 1;
+  color: var(--text-inactive);
+  border-bottom: none;
+  border-top: 1px solid rgba(200, 170, 110, 0.08);
+  padding: 7px 3px;
 }
 
 .grid-cell {
-  border: 1px solid #3a3a3a;
-  padding: 3px 6px;
-  min-width: 64px;
+  border: none;
+  border-top: 1px solid rgba(200, 170, 110, 0.08);
+  border-left: 1px solid rgba(200, 170, 110, 0.08);
+  padding: 6px 6px;
+  min-width: 52px;
   height: 22px;
-  background-color: #2a2a2a;
-  color: #f0f0f0;
+  background-color: var(--bg-cell);
+  color: var(--text-cell);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: cell;
 }
 
 .grid-cell-selected {
   background-color: #33455c;
-  outline: 1px solid #8fb8ff;
+  color: #f0f0f0;
+  outline: 1px solid var(--gold);
   outline-offset: -1px;
 }
 
 .grid-cell-error {
-  color: #ff8a8a;
+  color: var(--error);
 }
 
 .grid-cell-input {
@@ -332,6 +519,7 @@ input:focus {
   padding: 0;
   margin: 0;
   font-size: 1em;
+  text-align: right;
   background-color: transparent;
   color: inherit;
 }
@@ -344,6 +532,7 @@ input:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  font-size: 0.78em;
-  color: #9a9a9a;
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-top: var(--space-row-gap);
 }

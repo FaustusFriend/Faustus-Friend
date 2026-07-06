@@ -70,7 +70,7 @@ export function NotesSection() {
         placeholder="Jot down notes while trading…"
         spellCheck={false}
       />
-      <button className="copy-button" onClick={handleClear}>
+      <button className="secondary-button" onClick={handleClear}>
         Clear Notes
       </button>
     </div>

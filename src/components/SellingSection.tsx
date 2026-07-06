@@ -87,15 +87,15 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
         <div className="result-row">
           <span className="result-label">Sell</span>
           <span className="result-value">{hasResult ? result!.sell : "—"}</span>
-          <button className="copy-button" disabled={!hasResult} onClick={copySell}>
-            Copy
+          <button className="copy-button" title="Copy" disabled={!hasResult} onClick={copySell}>
+            ⧉
           </button>
         </div>
         <div className="result-row">
           <span className="result-label">Receive</span>
-          <span className="result-value">{hasResult ? result!.receive : "—"}</span>
-          <button className="copy-button" disabled={!hasResult} onClick={copyReceive}>
-            Copy
+          <span className="result-value result-value-sell">{hasResult ? result!.receive : "—"}</span>
+          <button className="copy-button" title="Copy" disabled={!hasResult} onClick={copyReceive}>
+            ⧉
           </button>
         </div>
         <p className="hint">Rate: {hasResult ? `~${result!.approxRate}` : "—"}</p>
