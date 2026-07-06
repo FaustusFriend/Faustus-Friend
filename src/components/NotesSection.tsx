@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { loadScratchpad, saveScratchpad } from "../lib/scratchpad";
+import { loadNotes, saveNotes } from "../lib/notes";
 
 const SAVE_DEBOUNCE_MS = 400;
 
-export function ScratchpadSection() {
+export function NotesSection() {
   const [notes, setNotes] = useState("");
   const loadedRef = useRef(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     (async () => {
-      const saved = await loadScratchpad();
+      const saved = await loadNotes();
       setNotes(saved);
       loadedRef.current = true;
     })();
@@ -30,24 +31,39 @@ export function ScratchpadSection() {
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(() => {
-      void saveScratchpad(value);
+      void saveNotes(value);
     }, SAVE_DEBOUNCE_MS);
   }
 
   function handleClear() {
-    const confirmed = window.confirm("Clear the scratchpad? This cannot be undone.");
-    if (!confirmed) return;
-
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    setNotes("");
-    void saveScratchpad("");
+
+    // Clear through execCommand (not a direct state assignment) so the
+    // browser's native undo stack sees this as a normal edit — Ctrl+Z can
+    // restore the previous text as long as focus stays in the textarea.
+    const el = textareaRef.current;
+    if (el) {
+      el.focus();
+      el.select();
+      const cleared = document.execCommand("insertText", false, "");
+      if (!cleared) {
+        setNotes("");
+        void saveNotes("");
+      }
+      // The resulting "input" event drives handleChange via onChange, which
+      // updates state and schedules the debounced save.
+    } else {
+      setNotes("");
+      void saveNotes("");
+    }
   }
 
   return (
     <div className="section">
       <textarea
+        ref={textareaRef}
         className="scratchpad-textarea"
         value={notes}
         onChange={(e) => handleChange(e.target.value)}
@@ -55,7 +71,7 @@ export function ScratchpadSection() {
         spellCheck={false}
       />
       <button className="copy-button" onClick={handleClear}>
-        Clear
+        Clear Notes
       </button>
     </div>
   );
