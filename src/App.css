@@ -416,6 +416,52 @@ input:focus {
   border-bottom-color: var(--gold);
 }
 
+.calc-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-row-gap);
+  min-width: 0;
+}
+
+/* Same family as .tab-bar/.tab, scaled down one notch (smaller text, thinner
+   underline, dimmer active color) so it reads as subordinate to the main
+   Calculator/Workspace tabs above it. */
+.subtab-bar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-gold-soft);
+}
+
+.subtab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  border-bottom: 1px solid transparent;
+  color: var(--text-inactive);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+
+.subtab:hover {
+  color: var(--text-muted);
+}
+
+.subtab-active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+
+.calc-panel-hidden {
+  display: none;
+}
+
 .grid-scroll {
   width: 100%;
   min-width: 0;

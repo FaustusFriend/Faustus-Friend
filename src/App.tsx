@@ -3,9 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { DEFAULT_SETTINGS, loadSettings } from "./settings";
 import { useClipboardQueue } from "./lib/clipboardQueue";
-import { BuyingSection } from "./components/BuyingSection";
-import { SellingSection } from "./components/SellingSection";
-import { ConversionSection } from "./components/ConversionSection";
+import { CalculatorSection } from "./components/CalculatorSection";
 import { NotesSection } from "./components/NotesSection";
 import { GridSection } from "./components/GridSection";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -100,16 +98,7 @@ function App() {
             />
           </>
         ) : mainTab === "calculator" ? (
-          <>
-            <h2 className="section-heading">Buying</h2>
-            <BuyingSection clipboardQueue={clipboardQueue} />
-
-            <h2 className="section-heading">Selling</h2>
-            <SellingSection clipboardQueue={clipboardQueue} />
-
-            <h2 className="section-heading">Currency Conversion</h2>
-            <ConversionSection />
-          </>
+          <CalculatorSection clipboardQueue={clipboardQueue} />
         ) : (
           <>
             <h2 className="section-heading">Notes</h2>
