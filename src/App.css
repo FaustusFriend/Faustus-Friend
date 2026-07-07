@@ -191,6 +191,7 @@ body,
   flex-direction: column;
   gap: 6px;
   padding: 8px 10px;
+  margin-top: var(--space-section);
   border-radius: var(--radius);
   background-color: var(--bg-panel);
   border: 1px solid var(--border-gold);
@@ -416,10 +417,22 @@ input:focus {
   border-bottom-color: var(--gold);
 }
 
+/* No width cap here — Calculate/Compare/Settings vs. Scratchpad width now
+   comes from the native window itself resizing per tab (see App.tsx), not
+   from a CSS max-width. A CSS-only cap wasn't a reliable enough visual
+   signal in the real overlay, so these panels just fill whatever the
+   current (per-tab) native window width happens to be. */
 .calc-tabs {
   display: flex;
   flex-direction: column;
   gap: var(--space-row-gap);
+  min-width: 0;
+}
+
+.workspace-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section);
   min-width: 0;
 }
 
@@ -580,7 +593,7 @@ input:focus {
   border-radius: 3px;
   border: 1px solid var(--border-gold);
   background: #0b0805;
-  margin-top: 4px;
+  margin-top: var(--space-section);
 }
 
 .compare-verdict.compare-accent-buy {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { DEFAULT_SETTINGS, loadSettings } from "./settings";
@@ -11,24 +11,21 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import "./App.css";
 
 type MainTab = "calculate" | "compare" | "workspace";
-export type SizeMode = "compact" | "wide";
 
-// Named window presets. Resizing only ever happens in direct response to a
-// button click (Settings' Compact/Wide, or Workspace's Maximize/Collapse Grid)
-// — never reactively on tab switch. An earlier version resized the native
-// window on every Workspace/Calculator tab change, which caused the window to
-// jump to the top-left of the screen the next time a grid cell was clicked.
-// Gating the resize behind an explicit, infrequent user gesture avoids that.
-const COMPACT_SIZE = { width: 360, height: 480 };
-const WIDE_SIZE = { width: 640, height: 600 };
+// Native per-tab window width — height never changes (stays at the
+// tauri.conf.json default) so the Scratchpad scrollbar fix can't regress.
+// Calculate/Compare/Settings share the narrow width; Scratchpad alone widens.
+const NARROW_WIDTH = 400;
+const WIDE_WIDTH = 450;
+const WINDOW_HEIGHT = 660;
 
 function App() {
   const [hotkey, setHotkey] = useState(DEFAULT_SETTINGS.hotkey);
   const [mainTab, setMainTab] = useState<MainTab>("calculate");
   const [showSettings, setShowSettings] = useState(false);
   const [hotkeyStatus, setHotkeyStatus] = useState<string | null>(null);
-  const [sizeMode, setSizeMode] = useState<SizeMode>("compact");
   const clipboardQueue = useClipboardQueue();
+  const didMountRef = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -42,22 +39,38 @@ function App() {
     })();
   }, []);
 
-  // The CSS layout only ever needs to know the *requested* mode — `.overlay-wide`
-  // just removes a width cap, so it stays safe (no overflow) even if the native
-  // resize below fails, e.g. because we're not running inside Tauri at all.
-  async function applySizeMode(mode: SizeMode): Promise<{ ok: boolean; error?: string }> {
-    setSizeMode(mode);
-    const size = mode === "compact" ? COMPACT_SIZE : WIDE_SIZE;
-    try {
-      await getCurrentWindow().setSize(new LogicalSize(size.width, size.height));
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: String(err) };
+  const isWide = !showSettings && mainTab === "workspace";
+
+  useEffect(() => {
+    // Skip the initial mount — the window already opens at NARROW_WIDTH per
+    // tauri.conf.json, so there's nothing to resize until the tab changes.
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
     }
-  }
+    (async () => {
+      const win = getCurrentWindow();
+      const width = isWide ? WIDE_WIDTH : NARROW_WIDTH;
+      try {
+        // Capture the window's on-screen position and re-assert it right
+        // after resizing. An earlier per-tab resize implementation skipped
+        // this and the window would jump to the screen's top-left corner
+        // the next time the user clicked inside the Workspace grid —
+        // re-asserting position closes that gap regardless of what the
+        // OS/webview does internally during the resize itself. Only width
+        // changes here; height is never touched.
+        const position = await win.outerPosition();
+        await win.setSize(new LogicalSize(width, WINDOW_HEIGHT));
+        await win.setPosition(position);
+      } catch {
+        // Not running inside Tauri (e.g. the plain browser preview) — the
+        // CSS layout works fine without the native resize.
+      }
+    })();
+  }, [isWide]);
 
   return (
-    <div className={`overlay ${sizeMode === "wide" ? "overlay-wide" : ""}`}>
+    <div className="overlay">
       <header className="overlay-header" data-tauri-drag-region>
         <span className="overlay-title-group">
           <span className="overlay-title-glyph" aria-hidden="true">
@@ -101,12 +114,7 @@ function App() {
             Buying/Selling sub-tabs. */}
         <div className={showSettings ? "" : "calc-panel-hidden"}>
           <h2 className="section-heading">Settings</h2>
-          <SettingsPanel
-            hotkey={hotkey}
-            onHotkeySaved={setHotkey}
-            sizeMode={sizeMode}
-            onApplySizeMode={applySizeMode}
-          />
+          <SettingsPanel hotkey={hotkey} onHotkeySaved={setHotkey} />
         </div>
         <div className={!showSettings && mainTab === "calculate" ? "" : "calc-panel-hidden"}>
           <CalculatorSection clipboardQueue={clipboardQueue} />
@@ -114,7 +122,7 @@ function App() {
         <div className={!showSettings && mainTab === "compare" ? "" : "calc-panel-hidden"}>
           <CompareSection />
         </div>
-        <div className={!showSettings && mainTab === "workspace" ? "" : "calc-panel-hidden"}>
+        <div className={!showSettings && mainTab === "workspace" ? "workspace-panel" : "calc-panel-hidden"}>
           <h2 className="section-heading">Notes</h2>
           <NotesSection />
 
