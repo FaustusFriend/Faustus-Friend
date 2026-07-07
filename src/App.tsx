@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { DEFAULT_SETTINGS, loadSettings } from "./settings";
 import { useClipboardQueue } from "./lib/clipboardQueue";
@@ -39,6 +40,17 @@ function App() {
         setHotkeyStatus(`Failed to register hotkey "${toggleOverlayShortcut}": ${err}`);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    // Fired by the tray menu's "Settings" item, which shows the window and
+    // then needs to also switch the already-mounted app over to Settings.
+    const unlistenPromise = listen("open-settings", () => {
+      setShowSettings(true);
+    });
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
   }, []);
 
   const isWide = !showSettings && mainTab === "workspace";
