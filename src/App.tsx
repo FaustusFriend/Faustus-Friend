@@ -4,12 +4,13 @@ import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { DEFAULT_SETTINGS, loadSettings } from "./settings";
 import { useClipboardQueue } from "./lib/clipboardQueue";
 import { CalculatorSection } from "./components/CalculatorSection";
+import { CompareSection } from "./components/CompareSection";
 import { NotesSection } from "./components/NotesSection";
 import { GridSection } from "./components/GridSection";
 import { SettingsPanel } from "./components/SettingsPanel";
 import "./App.css";
 
-type MainTab = "calculator" | "workspace";
+type MainTab = "calculate" | "compare" | "workspace";
 export type SizeMode = "compact" | "wide";
 
 // Named window presets. Resizing only ever happens in direct response to a
@@ -23,7 +24,7 @@ const WIDE_SIZE = { width: 640, height: 600 };
 
 function App() {
   const [hotkey, setHotkey] = useState(DEFAULT_SETTINGS.hotkey);
-  const [mainTab, setMainTab] = useState<MainTab>("calculator");
+  const [mainTab, setMainTab] = useState<MainTab>("calculate");
   const [showSettings, setShowSettings] = useState(false);
   const [hotkeyStatus, setHotkeyStatus] = useState<string | null>(null);
   const [sizeMode, setSizeMode] = useState<SizeMode>("compact");
@@ -72,42 +73,54 @@ function App() {
       {!showSettings && (
         <nav className="tab-bar">
           <button
-            className={`tab ${mainTab === "calculator" ? "tab-active" : ""}`}
-            onClick={() => setMainTab("calculator")}
+            className={`tab ${mainTab === "calculate" ? "tab-active" : ""}`}
+            onClick={() => setMainTab("calculate")}
           >
-            Calculator
+            Calculate
+          </button>
+          <button
+            className={`tab ${mainTab === "compare" ? "tab-active" : ""}`}
+            onClick={() => setMainTab("compare")}
+          >
+            Compare
           </button>
           <button
             className={`tab ${mainTab === "workspace" ? "tab-active" : ""}`}
             onClick={() => setMainTab("workspace")}
           >
-            Workspace
+            Scratchpad
           </button>
         </nav>
       )}
 
       <div className="content">
-        {showSettings ? (
-          <>
-            <h2 className="section-heading">Settings</h2>
-            <SettingsPanel
-              hotkey={hotkey}
-              onHotkeySaved={setHotkey}
-              sizeMode={sizeMode}
-              onApplySizeMode={applySizeMode}
-            />
-          </>
-        ) : mainTab === "calculator" ? (
+        {/* Every top-level panel stays mounted at all times — only visibility
+            toggles via CSS — so switching tabs (or opening Settings) never
+            resets in-progress Calculate/Compare input. Mirrors the same
+            mount-all pattern CalculatorSection already uses for its own
+            Buying/Selling sub-tabs. */}
+        <div className={showSettings ? "" : "calc-panel-hidden"}>
+          <h2 className="section-heading">Settings</h2>
+          <SettingsPanel
+            hotkey={hotkey}
+            onHotkeySaved={setHotkey}
+            sizeMode={sizeMode}
+            onApplySizeMode={applySizeMode}
+          />
+        </div>
+        <div className={!showSettings && mainTab === "calculate" ? "" : "calc-panel-hidden"}>
           <CalculatorSection clipboardQueue={clipboardQueue} />
-        ) : (
-          <>
-            <h2 className="section-heading">Notes</h2>
-            <NotesSection />
+        </div>
+        <div className={!showSettings && mainTab === "compare" ? "" : "calc-panel-hidden"}>
+          <CompareSection />
+        </div>
+        <div className={!showSettings && mainTab === "workspace" ? "" : "calc-panel-hidden"}>
+          <h2 className="section-heading">Notes</h2>
+          <NotesSection />
 
-            <h2 className="section-heading">Grid</h2>
-            <GridSection sizeMode={sizeMode} onApplySizeMode={applySizeMode} />
-          </>
-        )}
+          <h2 className="section-heading">Grid</h2>
+          <GridSection sizeMode={sizeMode} onApplySizeMode={applySizeMode} />
+        </div>
         {hotkeyStatus && <p className="status">{hotkeyStatus}</p>}
       </div>
     </div>
