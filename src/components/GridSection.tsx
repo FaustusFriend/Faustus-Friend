@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import type { SizeMode } from "../App";
 import { computeCellDisplay } from "../lib/formula";
 import {
   GRID_COLS,
@@ -53,24 +52,11 @@ const ARROW_KEY_DELTAS: Record<string, { row: number; col: number }> = {
   ArrowRight: { row: 0, col: 1 },
 };
 
-interface GridSectionProps {
-  sizeMode: SizeMode;
-  onApplySizeMode: (mode: SizeMode) => Promise<{ ok: boolean; error?: string }>;
-}
-
-export function GridSection({ sizeMode, onApplySizeMode }: GridSectionProps) {
+export function GridSection() {
   const [grid, setGrid] = useState<Grid>(createEmptyGrid);
   const [selection, setSelection] = useState<SelectionRange | null>(null);
   const [editingCell, setEditingCell] = useState<CellPosition | null>(null);
   const [editingValue, setEditingValue] = useState("");
-  // Purely visual — the grid viewport defaults to showing a handful of rows so
-  // the selection summary stays in view below it; all 20 rows are still in the
-  // DOM and selectable/editable either way. Toggling this never touches grid data.
-  const [gridExpanded, setGridExpanded] = useState(false);
-  // Tracks whether *this* Maximize click was the one that switched the app to
-  // Wide (as opposed to the user already having chosen Wide from Settings) —
-  // Collapse only auto-restores Compact if Maximize is what caused the switch.
-  const autoWidenedRef = useRef(false);
 
   const loadedRef = useRef(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -342,31 +328,13 @@ export function GridSection({ sizeMode, onApplySizeMode }: GridSectionProps) {
     commitGrid(createEmptyGrid());
   }
 
-  function handleToggleGridExpanded() {
-    const expanding = !gridExpanded;
-    setGridExpanded(expanding);
-    if (expanding && sizeMode === "compact") {
-      // Compact has no room to show the grid wider — widen the app itself as
-      // a deliberate side effect of this explicit click (never automatic).
-      autoWidenedRef.current = true;
-      void onApplySizeMode("wide");
-    } else if (!expanding && autoWidenedRef.current) {
-      autoWidenedRef.current = false;
-      void onApplySizeMode("compact");
-    }
-  }
-
   const summary = selection ? summarizeCells(getSelectedCellTexts(grid, selection)) : null;
 
   return (
     <div className="section">
-      <button className="secondary-button" onClick={handleToggleGridExpanded}>
-        {gridExpanded ? "Collapse Grid" : "Maximize Grid"}
-      </button>
-
       <div
         ref={containerRef}
-        className={`grid-scroll ${gridExpanded ? "grid-scroll-expanded" : ""}`}
+        className="grid-scroll"
         tabIndex={0}
         onKeyDown={handleContainerKeyDown}
         onCopy={handleCopy}

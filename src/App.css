@@ -275,7 +275,7 @@ body,
 }
 
 .scratchpad-textarea {
-  min-height: 80px;
+  min-height: 52px;
   resize: vertical;
   border-radius: var(--radius);
   border: 1px solid var(--border-gold);
@@ -675,29 +675,16 @@ input:focus {
   border: 1px solid var(--accent-sell);
 }
 
+/* At 5x8 the whole worksheet always fits without scrolling, so this is a
+   plain (non-scrolling) container — overflow: hidden is purely a defensive
+   clip, matching the design spec, and should never actually clip anything. */
 .grid-scroll {
   width: 100%;
   min-width: 0;
-  max-width: 360px;
-  max-height: 185px;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--border-gold);
   border-radius: var(--radius);
   outline: none;
-}
-
-/* Wide mode has the room, so let the grid use whatever width the app shell
-   actually has instead of the compact-window column cap. Safe even if a
-   native resize call failed silently, since this is relative to the real
-   rendered container — it can never push the box past 100% and reintroduce
-   app-level horizontal scroll. */
-.overlay-wide .grid-scroll {
-  max-width: 100%;
-}
-
-.grid-scroll-expanded {
-  max-width: none;
-  max-height: 520px;
 }
 
 .grid-scroll:focus {

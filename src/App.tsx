@@ -119,7 +119,7 @@ function App() {
           <NotesSection />
 
           <h2 className="section-heading">Grid</h2>
-          <GridSection sizeMode={sizeMode} onApplySizeMode={applySizeMode} />
+          <GridSection />
         </div>
         {hotkeyStatus && <p className="status">{hotkeyStatus}</p>}
       </div>

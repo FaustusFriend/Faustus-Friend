@@ -9,6 +9,7 @@ import {
   getSelectedCellTexts,
   isCellInRange,
   isSingleCellRange,
+  normalizeGridShape,
   normalizeRange,
   parseClipboardBlock,
   parsePlainNumber,
@@ -160,6 +161,58 @@ describe("clearRange", () => {
     const cleared = clearRange(grid, range(0, 0, 0, 0));
     expect(cleared[0][0]).toBe("");
     expect(cleared[5][5]).toBe("keep");
+  });
+});
+
+describe("normalizeGridShape", () => {
+  it("returns an empty grid for undefined/null saved data", () => {
+    expect(normalizeGridShape(undefined)).toEqual(createEmptyGrid());
+    expect(normalizeGridShape(null)).toEqual(createEmptyGrid());
+  });
+
+  it("returns an empty grid for malformed (non-array) saved data", () => {
+    expect(normalizeGridShape("not a grid")).toEqual(createEmptyGrid());
+    expect(normalizeGridShape({ not: "a grid" })).toEqual(createEmptyGrid());
+  });
+
+  it("keeps data that fits within the current bounds unchanged", () => {
+    const saved = createEmptyGrid();
+    saved[0][0] = "42";
+    saved[GRID_ROWS - 1][GRID_COLS - 1] = "last";
+    expect(normalizeGridShape(saved)).toEqual(saved);
+  });
+
+  it("truncates a larger saved grid (e.g. from before a worksheet resize) to the current bounds", () => {
+    const oversized = Array.from({ length: GRID_ROWS + 12 }, () =>
+      Array.from({ length: GRID_COLS + 5 }, () => "x"),
+    );
+    // Mark one cell inside the new bounds and one outside, on both axes.
+    oversized[0][0] = "kept";
+    oversized[GRID_ROWS][0] = "dropped-row";
+    oversized[0][GRID_COLS] = "dropped-col";
+
+    const result = normalizeGridShape(oversized);
+    expect(result.length).toBe(GRID_ROWS);
+    expect(result.every((row) => row.length === GRID_COLS)).toBe(true);
+    expect(result[0][0]).toBe("kept");
+  });
+
+  it("pads a smaller saved grid with empty cells rather than crashing", () => {
+    const undersized = [["a", "b"]];
+    const result = normalizeGridShape(undersized);
+    expect(result.length).toBe(GRID_ROWS);
+    expect(result[0][0]).toBe("a");
+    expect(result[0][1]).toBe("b");
+    expect(result[0][2]).toBe("");
+    expect(result[1][0]).toBe("");
+  });
+
+  it("tolerates a row that isn't itself an array", () => {
+    const malformed = [null, ["a"], undefined];
+    expect(() => normalizeGridShape(malformed)).not.toThrow();
+    const result = normalizeGridShape(malformed);
+    expect(result[0].every((cell) => cell === "")).toBe(true);
+    expect(result[1][0]).toBe("a");
   });
 });
 

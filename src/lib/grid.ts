@@ -1,8 +1,10 @@
 import { load, type Store } from "@tauri-apps/plugin-store";
 import { computeCellDisplay, evaluateFormula, isFormula } from "./formula";
 
-export const GRID_ROWS = 20;
-export const GRID_COLS = 10;
+// Deliberately small — the Scratchpad is quick working paper, not a
+// spreadsheet replacement, and must fit fully on screen with no scrolling.
+export const GRID_ROWS = 8;
+export const GRID_COLS = 5;
 
 export type Grid = string[][];
 
@@ -171,13 +173,31 @@ function getStore(): Promise<Store> {
   return storePromise;
 }
 
+/**
+ * Reshapes arbitrary saved data into a valid GRID_ROWS x GRID_COLS grid,
+ * tolerating data saved under a different worksheet size (e.g. before a
+ * resize like Task 7's 20x10 -> 8x5). Cells within the overlap of the saved
+ * and current bounds are kept; anything outside the current bounds is
+ * dropped (silent truncation) and any missing cells are padded empty. Never
+ * throws, regardless of how malformed `saved` is.
+ */
+export function normalizeGridShape(saved: unknown): Grid {
+  if (!Array.isArray(saved)) {
+    return createEmptyGrid();
+  }
+  return Array.from({ length: GRID_ROWS }, (_, row) =>
+    Array.from({ length: GRID_COLS }, (_, col) => {
+      const savedRow = saved[row];
+      const value = Array.isArray(savedRow) ? savedRow[col] : undefined;
+      return typeof value === "string" ? value : "";
+    }),
+  );
+}
+
 export async function loadGrid(): Promise<Grid> {
   const store = await getStore();
   const saved = await store.get<Grid>(GRID_KEY);
-  if (!saved || saved.length !== GRID_ROWS || saved.some((row) => row.length !== GRID_COLS)) {
-    return createEmptyGrid();
-  }
-  return saved;
+  return normalizeGridShape(saved);
 }
 
 export async function saveGrid(grid: Grid): Promise<void> {
