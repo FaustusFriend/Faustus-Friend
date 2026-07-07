@@ -73,7 +73,7 @@ function App() {
 
   return (
     <div className="overlay">
-      <header className="overlay-header" data-tauri-drag-region>
+      <header className="overlay-header" data-tauri-drag-region="deep">
         <span className="overlay-title-group">
           <span className="overlay-title-glyph" aria-hidden="true">
             ◆
