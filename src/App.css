@@ -318,6 +318,13 @@ body,
   width: 128px;
 }
 
+/* Shortcut combos like "Ctrl+Shift+Space" don't fit the 128px numeric-input
+ * width above — widen just this field, scoped so calculator/compare inputs
+ * are unaffected. */
+.field input.hotkey-input {
+  width: 190px;
+}
+
 .button-row {
   display: flex;
   flex: none;

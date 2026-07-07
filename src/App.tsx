@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { DEFAULT_SETTINGS, loadSettings } from "./settings";
 import { useClipboardQueue } from "./lib/clipboardQueue";
+import type { HotkeyMap } from "./lib/hotkeys";
 import { CalculatorSection } from "./components/CalculatorSection";
 import { CompareSection } from "./components/CompareSection";
 import { NotesSection } from "./components/NotesSection";
@@ -20,7 +21,7 @@ const WIDE_WIDTH = 450;
 const WINDOW_HEIGHT = 660;
 
 function App() {
-  const [hotkey, setHotkey] = useState(DEFAULT_SETTINGS.hotkey);
+  const [hotkeys, setHotkeys] = useState<HotkeyMap>(DEFAULT_SETTINGS.hotkeys);
   const [mainTab, setMainTab] = useState<MainTab>("calculate");
   const [showSettings, setShowSettings] = useState(false);
   const [hotkeyStatus, setHotkeyStatus] = useState<string | null>(null);
@@ -30,11 +31,12 @@ function App() {
   useEffect(() => {
     (async () => {
       const settings = await loadSettings();
-      setHotkey(settings.hotkey);
+      setHotkeys(settings.hotkeys);
+      const toggleOverlayShortcut = settings.hotkeys.toggleOverlay;
       try {
-        await invoke("register_hotkey", { shortcut: settings.hotkey });
+        await invoke("register_hotkey", { shortcut: toggleOverlayShortcut });
       } catch (err) {
-        setHotkeyStatus(`Failed to register hotkey "${settings.hotkey}": ${err}`);
+        setHotkeyStatus(`Failed to register hotkey "${toggleOverlayShortcut}": ${err}`);
       }
     })();
   }, []);
@@ -114,7 +116,7 @@ function App() {
             Buying/Selling sub-tabs. */}
         <div className={showSettings ? "" : "calc-panel-hidden"}>
           <h2 className="section-heading">Settings</h2>
-          <SettingsPanel hotkey={hotkey} onHotkeySaved={setHotkey} />
+          <SettingsPanel hotkeys={hotkeys} onHotkeysChanged={setHotkeys} />
         </div>
         <div className={!showSettings && mainTab === "calculate" ? "" : "calc-panel-hidden"}>
           <CalculatorSection clipboardQueue={clipboardQueue} />

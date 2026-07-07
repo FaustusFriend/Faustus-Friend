@@ -16,10 +16,19 @@ fn toggle_main_window(app: &tauri::AppHandle) {
     }
 }
 
+/// Re-applies the global toggle-overlay shortcut. `None` (or a
+/// whitespace-only string) disables it — the previous binding is still
+/// unregistered, but nothing new is registered and this returns `Ok`, since
+/// "no hotkey configured" isn't an error condition.
 #[tauri::command]
-fn register_hotkey(app: tauri::AppHandle, shortcut: String) -> Result<(), String> {
+fn register_hotkey(app: tauri::AppHandle, shortcut: Option<String>) -> Result<(), String> {
     let gs = app.global_shortcut();
     gs.unregister_all().map_err(|e| e.to_string())?;
+
+    let shortcut = match shortcut {
+        Some(s) if !s.trim().is_empty() => s,
+        _ => return Ok(()),
+    };
 
     let parsed: Shortcut = shortcut.parse().map_err(|e| format!("Invalid shortcut '{shortcut}': {e:?}"))?;
     gs.on_shortcut(parsed, move |app, _shortcut, event| {
