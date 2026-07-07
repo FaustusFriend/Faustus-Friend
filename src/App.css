@@ -162,6 +162,26 @@ body,
   background: var(--border-gold-soft);
 }
 
+/* Modifier for a .section-heading that marks the start of a new zone after
+   preceding content (e.g. "Result" after the input fields, "Verdict" after
+   the listings) — adds breathing room on top of the parent .section's
+   uniform row gap, so the divider reads as a bigger jump than the compact
+   gap between ordinary fields. Not used on "Inputs", which is already the
+   first element in its section. */
+.section-heading-divider {
+  margin-top: var(--space-section);
+}
+
+/* Sits between the heading label and the trailing hairline (inside the same
+   flex .section-heading) — e.g. Compare's "Inputs" + "enter all three". */
+.section-heading-note {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-inactive);
+}
+
 .section {
   display: flex;
   flex-direction: column;
@@ -169,17 +189,47 @@ body,
   min-width: 0;
 }
 
-.exchange-rate {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-row-gap);
-  padding: 0;
-  border: none;
-  background: none;
+/* Groups Price/Item and Items/Currency as one "enter either one" unit —
+   they're reciprocals of the same rate, not two separate required fields. */
+.price-group {
+  border: 1px solid rgba(200, 170, 110, 0.16);
+  border-radius: var(--radius-card);
+  background-color: rgba(200, 170, 110, 0.035);
+  padding: 8px 9px 9px;
 }
 
-.exchange-rate-label {
-  display: none;
+.price-group-caption {
+  margin-bottom: 8px;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.price-group-divider {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 6px 0;
+}
+
+.price-group-divider-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(200, 170, 110, 0.1);
+}
+
+.price-group-divider-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-inactive);
+}
+
+.price-group .field input {
+  width: 118px;
 }
 
 .field-nested {

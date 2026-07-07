@@ -67,6 +67,10 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
 
   return (
     <div className="section">
+      <h2 className="section-heading">
+        <span>Inputs</span>
+        <span className="section-heading-note">enter all three</span>
+      </h2>
       <label className="field">
         <span>Rate (c/div)</span>
         <input
@@ -127,6 +131,9 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
         />
       </div>
 
+      <h2 className="section-heading section-heading-divider">
+        <span>Verdict</span>
+      </h2>
       <div className={`compare-verdict ${winnerAccentClass}`}>
         <p className={`compare-verdict-title ${winnerAccentClass}`}>{verdictTitle}</p>
         {verdictSubline && <p className="compare-verdict-subline">{verdictSubline}</p>}

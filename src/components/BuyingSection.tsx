@@ -69,6 +69,9 @@ export function BuyingSection({ clipboardQueue }: BuyingSectionProps) {
 
   return (
     <div className="section">
+      <h2 className="section-heading">
+        <span>Inputs</span>
+      </h2>
       <label className="field">
         <span>Currency to Spend</span>
         <input
@@ -83,6 +86,9 @@ export function BuyingSection({ clipboardQueue }: BuyingSectionProps) {
 
       {error && <p className="error">{error}</p>}
 
+      <h2 className="section-heading section-heading-divider">
+        <span>Result</span>
+      </h2>
       <div className="result-block">
         <div className="result-row">
           <span className="result-label">Spend</span>

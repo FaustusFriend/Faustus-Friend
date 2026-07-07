@@ -69,6 +69,9 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
 
   return (
     <div className="section">
+      <h2 className="section-heading">
+        <span>Inputs</span>
+      </h2>
       <label className="field">
         <span>Items to Sell</span>
         <input
@@ -83,6 +86,9 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
 
       {error && <p className="error">{error}</p>}
 
+      <h2 className="section-heading section-heading-divider">
+        <span>Result</span>
+      </h2>
       <div className="result-block">
         <div className="result-row">
           <span className="result-label">Sell</span>

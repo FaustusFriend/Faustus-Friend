@@ -47,7 +47,7 @@ function toCents(sanitized: string, fieldName: string): { cents: bigint } | { er
 }
 
 /**
- * Dual-entry exchange-rate input: "Price per Item" and "Items per Currency"
+ * Dual-entry exchange-rate input: "Price / Item" and "Items / Currency"
  * (its reciprocal) are two views of one canonical rate. Editing either
  * recalculates the other; only the field the user is actively editing is
  * ever written to directly, so there's no update loop between them.
@@ -113,10 +113,10 @@ export function ExchangeRateInput({ onPriceChange }: ExchangeRateInputProps) {
   }
 
   return (
-    <div className="exchange-rate">
-      <span className="exchange-rate-label">Exchange Rate</span>
+    <div className="price-group">
+      <div className="price-group-caption">Price · enter either one</div>
       <label className="field field-nested">
-        <span>Price per Item</span>
+        <span>Price / Item</span>
         <input
           inputMode="decimal"
           value={priceText}
@@ -124,8 +124,13 @@ export function ExchangeRateInput({ onPriceChange }: ExchangeRateInputProps) {
           placeholder="0.00"
         />
       </label>
+      <div className="price-group-divider">
+        <span className="price-group-divider-line" />
+        <span className="price-group-divider-label">or</span>
+        <span className="price-group-divider-line" />
+      </div>
       <label className="field field-nested">
-        <span>Items per Currency</span>
+        <span>Items / Currency</span>
         <input
           inputMode="decimal"
           value={itemsText}
