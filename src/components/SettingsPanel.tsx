@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { saveHotkey } from "../settings";
-import { findConflict, HOTKEY_ACTIONS, validateShortcut, type HotkeyAction, type HotkeyMap } from "../lib/hotkeys";
+import {
+  captureShortcutFromKeyEvent,
+  findConflict,
+  HOTKEY_ACTIONS,
+  validateShortcut,
+  type HotkeyAction,
+  type HotkeyMap,
+} from "../lib/hotkeys";
 
 interface SettingsPanelProps {
   hotkeys: HotkeyMap;
@@ -28,6 +35,7 @@ function HotkeyField({ action, hotkeys, onHotkeysChanged }: HotkeyFieldProps) {
   const currentValue = hotkeys[action.id];
   const [input, setInput] = useState(currentValue ?? "");
   const [dirty, setDirty] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
 
@@ -49,10 +57,24 @@ function HotkeyField({ action, hotkeys, onHotkeysChanged }: HotkeyFieldProps) {
     }
   }, [currentValue, dirty]);
 
-  function handleInputChange(value: string) {
-    setInput(value);
-    setDirty(true);
-  }
+  // Belt-and-suspenders alongside the Escape handling in
+  // handleRecorderKeyDown below: in the real WebView2 runtime (not the
+  // plain-browser dev preview), an Escape keydown on the focused recorder
+  // button doesn't reliably reach that element's own onKeyDown, even though
+  // every other key (letters, Tab, modifier combos) does. A window-level,
+  // capture-phase listener catches it regardless of exactly where focus
+  // ends up, without changing behavior for any other key.
+  useEffect(() => {
+    if (!isRecording) return;
+    function handleWindowEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setIsRecording(false);
+      }
+    }
+    window.addEventListener("keydown", handleWindowEscape, { capture: true });
+    return () => window.removeEventListener("keydown", handleWindowEscape, { capture: true });
+  }, [isRecording]);
 
   // Registers `shortcut` (or unregisters, for `null`) with the native side
   // first — only persisted once the OS has actually accepted it, so a
@@ -104,17 +126,70 @@ function HotkeyField({ action, hotkeys, onHotkeysChanged }: HotkeyFieldProps) {
     await applyShortcut(null, `${action.label} shortcut disabled.`);
   }
 
+  function startRecording() {
+    setIsRecording(true);
+    setStatus(null);
+  }
+
+  // Handles both states of the recorder button:
+  //  - idle (focused, not recording): Backspace/Delete clears the shortcut.
+  //    Enter/Space need no handling here — native <button> behavior already
+  //    fires onClick (startRecording) for those.
+  //  - recording: every keydown is candidate shortcut input except Escape,
+  //    which cancels. `input` is never touched until a key combo is either
+  //    captured or the recording is cancelled, so cancelling automatically
+  //    "restores" the previous value simply by never having changed it.
+  function handleRecorderKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (!isRecording) {
+      if (event.key === "Backspace" || event.key === "Delete") {
+        event.preventDefault();
+        void handleClear();
+      }
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.key === "Escape") {
+      setIsRecording(false);
+      return;
+    }
+
+    const raw = captureShortcutFromKeyEvent(event);
+    if (raw === null) {
+      // Bare modifier press (e.g. just Ctrl) — keep waiting for the main key.
+      return;
+    }
+
+    const result = validateShortcut(raw);
+    setIsRecording(false);
+    if (!result.ok || !result.normalized) {
+      setStatus(result.error ?? "Unrecognized key combination.");
+      setIsError(true);
+      return;
+    }
+    setInput(result.normalized);
+    setDirty(true);
+    setStatus(null);
+  }
+
   return (
     <>
       <label className="field">
         <span>{action.label} hotkey</span>
-        <input
-          className="hotkey-input"
-          value={input}
-          onChange={(e) => handleInputChange(e.target.value)}
-          placeholder="e.g. Ctrl+Shift+Space"
-        />
+        <button
+          type="button"
+          className={`hotkey-recorder${isRecording ? " hotkey-recorder-active" : ""}`}
+          onClick={startRecording}
+          onKeyDown={handleRecorderKeyDown}
+          onBlur={() => setIsRecording(false)}
+          aria-live="polite"
+        >
+          {isRecording ? "Press shortcut…" : input || "Click to set shortcut"}
+        </button>
       </label>
+      {isRecording && <p className="hotkey-recording-hint">Esc = Cancel</p>}
       <div className="button-row">
         <button className="primary-button" onClick={handleSave}>
           Save

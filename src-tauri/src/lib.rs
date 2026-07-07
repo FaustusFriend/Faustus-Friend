@@ -6,23 +6,40 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 mod clipboard_queue;
 use clipboard_queue::{cancel_clipboard_queue, start_clipboard_queue};
 
+/// True only when the window is genuinely on-screen for the user — visible
+/// *and* not minimized. Windows treats "hidden" and "minimized" as
+/// independent states: `is_visible()` wraps Win32's `IsWindowVisible`, which
+/// reflects the `WS_VISIBLE` style bit and stays set while a window is
+/// merely minimized (`IsIconic`, a separate flag). Checking `is_visible()`
+/// alone was the bug — a native minimize left `WS_VISIBLE` set, so the next
+/// toggle saw "visible" and called `hide()` on an already-minimized window,
+/// leaving it hidden *and* minimized. The following `show()` cleared hidden
+/// but never un-minimized it, and with `skipTaskbar: true` there was no
+/// taskbar thumbnail left to manually restore it from — the window became
+/// permanently unrestorable via hotkey or tray.
+fn is_shown_to_user(window: &tauri::WebviewWindow) -> bool {
+    window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false)
+}
+
 fn toggle_main_window(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let visible = window.is_visible().unwrap_or(false);
-        if visible {
-            let _ = window.hide();
-        } else {
-            let _ = window.show();
-            let _ = window.set_focus();
-        }
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    if is_shown_to_user(&window) {
+        let _ = window.hide();
+    } else {
+        show_main_window(app);
     }
 }
 
-/// Unlike `toggle_main_window`, always ends in the visible state — used by
-/// the tray's Settings item and second-instance activation, where "make
-/// sure the user sees this" is the intent, not "flip whatever it currently is".
+/// Unlike `toggle_main_window`, always ends in the visible (and un-minimized)
+/// state — used by the tray's Settings item and second-instance activation,
+/// where "make sure the user sees this" is the intent, not "flip whatever
+/// it currently is". Also what `toggle_main_window` calls to restore, so
+/// the hidden/minimized/both-handling logic lives in exactly one place.
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
     }

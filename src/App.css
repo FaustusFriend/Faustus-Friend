@@ -318,11 +318,48 @@ body,
   width: 128px;
 }
 
-/* Shortcut combos like "Ctrl+Shift+Space" don't fit the 128px numeric-input
- * width above — widen just this field, scoped so calculator/compare inputs
- * are unaffected. */
-.field input.hotkey-input {
+/* The shortcut recorder is a <button>, not an <input> (clicking it starts
+ * capture rather than accepting typed text), so it doesn't inherit the base
+ * `input { ... }` rule below — this reproduces the same visual treatment
+ * plus the wider 190px width shortcut combos like "Ctrl+Shift+Space" need
+ * (vs. the 128px default above), scoped so calculator/compare inputs are
+ * unaffected. */
+.hotkey-recorder {
+  flex: none;
   width: 190px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-gold);
+  padding: 5px 8px;
+  font-size: 13.5px;
+  font-family: var(--font-ui);
+  color: var(--text);
+  background-color: var(--bg-inset);
+  text-align: right;
+  cursor: pointer;
+}
+
+.hotkey-recorder:hover {
+  border-color: var(--gold);
+}
+
+.hotkey-recorder:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+.hotkey-recorder-active {
+  border-color: var(--gold);
+  color: var(--text-inactive);
+}
+
+/* Lighter-weight than .hint (no top border/separator) — this is momentary
+ * contextual feedback shown right under the field while recording, not a
+ * standing footer note. */
+.hotkey-recording-hint {
+  margin: 0;
+  font-size: 10px;
+  color: var(--text-faint);
+  text-align: right;
 }
 
 .button-row {

@@ -155,6 +155,43 @@ export function shortcutsEqual(a: string, b: string): boolean {
   return va.ok && vb.ok && va.normalized === vb.normalized;
 }
 
+const MODIFIER_KEY_NAMES = new Set(["Control", "Shift", "Alt", "Meta"]);
+
+/** The subset of a DOM KeyboardEvent this module needs — kept as a plain
+ * interface (rather than importing `KeyboardEvent`/`React.KeyboardEvent`)
+ * so this stays a pure, framework-independent function that's trivial to
+ * unit test with a plain object literal. */
+export interface CapturableKeyEvent {
+  key: string;
+  code: string;
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  metaKey: boolean;
+}
+
+/** Turns a single keydown event from shortcut-recording mode into a raw
+ * (not yet validated) shortcut string — or `null` if the event is just a
+ * bare modifier press with no main key yet, meaning the caller should keep
+ * listening. Feed the result through `validateShortcut`: this deliberately
+ * doesn't re-implement key-name recognition, it just formats the event as
+ * the same "Mod+Mod+Key" text a user would have typed, using `code`
+ * (physical, layout-independent) for the key token so the existing
+ * KEY_ALIASES table recognizes it exactly like typed text would (e.g.
+ * `code: "KeyC"` matches the same "KEYC" alias as if the user had typed
+ * "KeyC" or "C"). */
+export function captureShortcutFromKeyEvent(event: CapturableKeyEvent): string | null {
+  if (MODIFIER_KEY_NAMES.has(event.key)) {
+    return null;
+  }
+  const mods: string[] = [];
+  if (event.ctrlKey) mods.push("Ctrl");
+  if (event.altKey) mods.push("Alt");
+  if (event.shiftKey) mods.push("Shift");
+  if (event.metaKey) mods.push("Super");
+  return [...mods, event.code].join("+");
+}
+
 /** Returns the action already bound to `shortcut`, if any, among `hotkeys`
  * — excluding `excludeActionId` (the action currently being edited). Takes
  * the action list as a parameter (defaulting to the live registry) so it

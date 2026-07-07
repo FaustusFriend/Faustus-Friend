@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { findConflict, shortcutsEqual, validateShortcut, type HotkeyAction, type HotkeyMap } from "./hotkeys";
+import {
+  captureShortcutFromKeyEvent,
+  findConflict,
+  shortcutsEqual,
+  validateShortcut,
+  type CapturableKeyEvent,
+  type HotkeyAction,
+  type HotkeyMap,
+} from "./hotkeys";
+
+function keyEvent(overrides: Partial<CapturableKeyEvent> & { key: string; code: string }): CapturableKeyEvent {
+  return { ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...overrides };
+}
 
 describe("validateShortcut", () => {
   it("accepts a single key with no modifiers", () => {
@@ -70,6 +82,51 @@ describe("shortcutsEqual", () => {
   it("treats invalid input as never equal", () => {
     expect(shortcutsEqual("Ctrl+Foo", "Ctrl+Foo")).toBe(false);
     expect(shortcutsEqual("", "F9")).toBe(false);
+  });
+});
+
+describe("captureShortcutFromKeyEvent", () => {
+  it("returns null for a bare modifier press so recording keeps listening", () => {
+    expect(captureShortcutFromKeyEvent(keyEvent({ key: "Control", code: "ControlLeft", ctrlKey: true }))).toBeNull();
+    expect(captureShortcutFromKeyEvent(keyEvent({ key: "Shift", code: "ShiftLeft", shiftKey: true }))).toBeNull();
+    expect(captureShortcutFromKeyEvent(keyEvent({ key: "Alt", code: "AltLeft", altKey: true }))).toBeNull();
+    expect(captureShortcutFromKeyEvent(keyEvent({ key: "Meta", code: "MetaLeft", metaKey: true }))).toBeNull();
+  });
+
+  it("builds a raw combo string from held modifiers plus the physical key code", () => {
+    const raw = captureShortcutFromKeyEvent(keyEvent({ key: "c", code: "KeyC", ctrlKey: true, shiftKey: true }));
+    expect(raw).toBe("Ctrl+Shift+KeyC");
+  });
+
+  it("produces a combo that validateShortcut normalizes to the same result as typed text", () => {
+    const raw = captureShortcutFromKeyEvent(keyEvent({ key: "c", code: "KeyC", ctrlKey: true, shiftKey: true }));
+    expect(validateShortcut(raw!)).toEqual({ ok: true, normalized: "Ctrl+Shift+C" });
+  });
+
+  it("captures a bare key with no modifiers", () => {
+    const raw = captureShortcutFromKeyEvent(keyEvent({ key: "F9", code: "F9" }));
+    expect(raw).toBe("F9");
+    expect(validateShortcut(raw!)).toEqual({ ok: true, normalized: "F9" });
+  });
+
+  it("captures digit and punctuation keys via their physical code", () => {
+    expect(
+      validateShortcut(captureShortcutFromKeyEvent(keyEvent({ key: "5", code: "Digit5", ctrlKey: true }))!)
+    ).toEqual({ ok: true, normalized: "Ctrl+5" });
+    expect(
+      validateShortcut(captureShortcutFromKeyEvent(keyEvent({ key: ",", code: "Comma", ctrlKey: true }))!)
+    ).toEqual({ ok: true, normalized: "Ctrl+," });
+  });
+
+  it("captures Super (Meta) for a super-modified combo", () => {
+    const raw = captureShortcutFromKeyEvent(keyEvent({ key: "a", code: "KeyA", metaKey: true }));
+    expect(raw).toBe("Super+KeyA");
+  });
+
+  it("passes an unrecognized key through so the caller's validation rejects it", () => {
+    const raw = captureShortcutFromKeyEvent(keyEvent({ key: "5", code: "Numpad5" }));
+    expect(raw).toBe("Numpad5");
+    expect(validateShortcut(raw!).ok).toBe(false);
   });
 });
 
