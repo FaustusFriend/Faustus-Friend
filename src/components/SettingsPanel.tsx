@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { saveHotkey } from "../settings";
-import { exportDiagnostics } from "../lib/diagnostics";
 import {
   captureShortcutFromKeyEvent,
   findConflict,
@@ -14,52 +13,21 @@ import {
 interface SettingsPanelProps {
   hotkeys: HotkeyMap;
   onHotkeysChanged: (hotkeys: HotkeyMap) => void;
+  onOpenAbout: () => void;
 }
 
-export function SettingsPanel({ hotkeys, onHotkeysChanged }: SettingsPanelProps) {
+export function SettingsPanel({ hotkeys, onHotkeysChanged, onOpenAbout }: SettingsPanelProps) {
   return (
     <div className="section">
       {HOTKEY_ACTIONS.map((action) => (
         <HotkeyField key={action.id} action={action} hotkeys={hotkeys} onHotkeysChanged={onHotkeysChanged} />
       ))}
-      <DiagnosticsField />
-    </div>
-  );
-}
-
-function DiagnosticsField() {
-  const [status, setStatus] = useState<string | null>(null);
-  const [isError, setIsError] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-
-  async function handleExport() {
-    setIsExporting(true);
-    setStatus(null);
-    try {
-      const path = await exportDiagnostics();
-      setStatus(`Diagnostics saved to ${path}`);
-      setIsError(false);
-    } catch (err) {
-      setStatus(`Could not export diagnostics: ${err}`);
-      setIsError(true);
-    } finally {
-      setIsExporting(false);
-    }
-  }
-
-  return (
-    <>
-      <p className="hint">
-        Export a local diagnostics bundle (logs, settings, app info) to share when reporting a problem. Nothing is
-        sent anywhere automatically — this only writes a ZIP file to your computer.
-      </p>
       <div className="button-row">
-        <button className="secondary-button" onClick={handleExport} disabled={isExporting}>
-          {isExporting ? "Exporting…" : "Export Diagnostics"}
+        <button className="secondary-button" onClick={onOpenAbout}>
+          About &amp; Support...
         </button>
       </div>
-      {status && <p className={isError ? "error" : "status"}>{status}</p>}
-    </>
+    </div>
   );
 }
 

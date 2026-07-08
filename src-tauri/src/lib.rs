@@ -223,7 +223,8 @@ pub fn run() {
             cancel_clipboard_queue,
             log_frontend_event,
             export_diagnostics,
-            diagnostics::settings_store_status
+            diagnostics::settings_store_status,
+            diagnostics::get_build_info
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application");

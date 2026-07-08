@@ -10,6 +10,7 @@ import { CompareSection } from "./components/CompareSection";
 import { NotesSection } from "./components/NotesSection";
 import { GridSection } from "./components/GridSection";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { AboutPanel } from "./components/AboutPanel";
 import "./App.css";
 
 type MainTab = "calculate" | "compare" | "workspace";
@@ -25,6 +26,7 @@ function App() {
   const [hotkeys, setHotkeys] = useState<HotkeyMap>(DEFAULT_SETTINGS.hotkeys);
   const [mainTab, setMainTab] = useState<MainTab>("calculate");
   const [showSettings, setShowSettings] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [hotkeyStatus, setHotkeyStatus] = useState<string | null>(null);
   const clipboardQueue = useClipboardQueue();
   const didMountRef = useRef(false);
@@ -46,6 +48,7 @@ function App() {
     // Fired by the tray menu's "Settings" item, which shows the window and
     // then needs to also switch the already-mounted app over to Settings.
     const unlistenPromise = listen("open-settings", () => {
+      setShowAbout(false);
       setShowSettings(true);
     });
     return () => {
@@ -53,7 +56,7 @@ function App() {
     };
   }, []);
 
-  const isWide = !showSettings && mainTab === "workspace";
+  const isWide = !showSettings && !showAbout && mainTab === "workspace";
 
   useEffect(() => {
     // Skip the initial mount — the window already opens at NARROW_WIDTH per
@@ -92,12 +95,23 @@ function App() {
           </span>
           <span className="overlay-title">Faustus Friend</span>
         </span>
-        <button className="icon-button" title="Settings" onClick={() => setShowSettings((v) => !v)}>
+        <button
+          className="icon-button"
+          title="Settings"
+          onClick={() => {
+            if (showAbout) {
+              setShowAbout(false);
+              setShowSettings(true);
+            } else {
+              setShowSettings((v) => !v);
+            }
+          }}
+        >
           ⚙
         </button>
       </header>
 
-      {!showSettings && (
+      {!showSettings && !showAbout && (
         <nav className="tab-bar">
           <button
             className={`tab ${mainTab === "calculate" ? "tab-active" : ""}`}
@@ -126,17 +140,36 @@ function App() {
             resets in-progress Calculate/Compare input. Mirrors the same
             mount-all pattern CalculatorSection already uses for its own
             Buying/Selling sub-tabs. */}
-        <div className={showSettings ? "" : "calc-panel-hidden"}>
+        <div className={showSettings && !showAbout ? "" : "calc-panel-hidden"}>
           <h2 className="section-heading">Settings</h2>
-          <SettingsPanel hotkeys={hotkeys} onHotkeysChanged={setHotkeys} />
+          <SettingsPanel
+            hotkeys={hotkeys}
+            onHotkeysChanged={setHotkeys}
+            onOpenAbout={() => {
+              setShowSettings(false);
+              setShowAbout(true);
+            }}
+          />
         </div>
-        <div className={!showSettings && mainTab === "calculate" ? "" : "calc-panel-hidden"}>
+        <div className={showAbout ? "" : "calc-panel-hidden"}>
+          <AboutPanel
+            onClose={() => {
+              setShowAbout(false);
+              setShowSettings(true);
+            }}
+          />
+        </div>
+        <div className={!showSettings && !showAbout && mainTab === "calculate" ? "" : "calc-panel-hidden"}>
           <CalculatorSection clipboardQueue={clipboardQueue} />
         </div>
-        <div className={!showSettings && mainTab === "compare" ? "" : "calc-panel-hidden"}>
+        <div className={!showSettings && !showAbout && mainTab === "compare" ? "" : "calc-panel-hidden"}>
           <CompareSection />
         </div>
-        <div className={!showSettings && mainTab === "workspace" ? "workspace-panel" : "calc-panel-hidden"}>
+        <div
+          className={
+            !showSettings && !showAbout && mainTab === "workspace" ? "workspace-panel" : "calc-panel-hidden"
+          }
+        >
           <h2 className="section-heading">Notes</h2>
           <NotesSection />
 

@@ -23,3 +23,16 @@ export async function logEvent(
 export async function exportDiagnostics(): Promise<string> {
   return invoke<string>("export_diagnostics");
 }
+
+export interface BuildInfo {
+  app_version: string;
+  git_commit: string;
+  build_date: string;
+  platform: string;
+  arch: string;
+}
+
+/** App version/commit/build-date, populated automatically at compile time. */
+export async function getBuildInfo(): Promise<BuildInfo> {
+  return invoke<BuildInfo>("get_build_info");
+}

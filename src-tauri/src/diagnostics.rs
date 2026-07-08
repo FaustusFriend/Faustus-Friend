@@ -27,14 +27,42 @@ pub struct DiagnosticsState {
     write_lock: Mutex<()>,
 }
 
+/// Version/commit/build-date, populated automatically at compile time (see
+/// `build.rs`) rather than hand-edited per release. Shared by the startup
+/// log, the diagnostics export, and the About & Support dialog's
+/// `get_build_info` command — one source of truth for all three.
+#[derive(Serialize, Clone)]
+pub struct BuildInfo {
+    pub app_version: String,
+    pub git_commit: String,
+    pub build_date: String,
+    pub platform: String,
+    pub arch: String,
+}
+
+fn collect_build_info() -> BuildInfo {
+    BuildInfo {
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        git_commit: option_env!("FAUSTUS_GIT_COMMIT").unwrap_or("unknown").to_string(),
+        build_date: option_env!("FAUSTUS_BUILD_DATE").unwrap_or("unknown").to_string(),
+        platform: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+    }
+}
+
+/// Exposes build metadata to the frontend for the About & Support dialog.
+#[tauri::command]
+pub fn get_build_info() -> BuildInfo {
+    collect_build_info()
+}
+
 #[derive(Serialize)]
 struct AppMetadata {
     session_id: String,
-    app_version: String,
-    git_commit: String,
-    build_date: String,
-    platform: String,
-    arch: String,
+    #[serde(flatten)]
+    build: BuildInfo,
+    // Cargo.toml currently pins the `tauri` crate to major version 2;
+    // there's no runtime API to read the exact resolved crate version.
     tauri_major_version: String,
     webview2_version: String,
 }
@@ -42,13 +70,7 @@ struct AppMetadata {
 fn collect_metadata(session_id: &str) -> AppMetadata {
     AppMetadata {
         session_id: session_id.to_string(),
-        app_version: env!("CARGO_PKG_VERSION").to_string(),
-        git_commit: option_env!("FAUSTUS_GIT_COMMIT").unwrap_or("unknown").to_string(),
-        build_date: option_env!("FAUSTUS_BUILD_DATE").unwrap_or("unknown").to_string(),
-        platform: std::env::consts::OS.to_string(),
-        arch: std::env::consts::ARCH.to_string(),
-        // Cargo.toml currently pins the `tauri` crate to major version 2;
-        // there's no runtime API to read the exact resolved crate version.
+        build: collect_build_info(),
         tauri_major_version: "2".to_string(),
         webview2_version: tauri::webview_version().unwrap_or_else(|_| "unknown".to_string()),
     }
@@ -122,7 +144,11 @@ pub fn init(app: &AppHandle) -> Result<(), String> {
         "info",
         &format!(
             "Faustus Friend v{} starting (session {session_id}, commit {}, built {}, {}/{})",
-            metadata.app_version, metadata.git_commit, metadata.build_date, metadata.platform, metadata.arch
+            metadata.build.app_version,
+            metadata.build.git_commit,
+            metadata.build.build_date,
+            metadata.build.platform,
+            metadata.build.arch
         ),
     );
     log_event(
@@ -384,7 +410,7 @@ pub fn export(app: &AppHandle) -> Result<PathBuf, String> {
         &mut zip,
         options,
         "README.txt",
-        build_readme(&state.session_id, &metadata.app_version).as_bytes(),
+        build_readme(&state.session_id, &metadata.build.app_version).as_bytes(),
     )?;
 
     zip.finish().map_err(|e| e.to_string())?;
