@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Support the project on Ko-fi (preferred)
+    url: https://ko-fi.com/faustusfriend
+    about: Faustus Friend is free and donation-supported — Ko-fi is the preferred way to chip in.
+  - name: Support the project on PayPal (alternative)
+    url: https://paypal.me/FaustusFriend
+    about: Alternative donation link if you prefer PayPal over Ko-fi.
