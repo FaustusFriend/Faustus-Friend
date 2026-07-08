@@ -17,6 +17,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+time = { version = "0.3", features = ["formatting", "macros"] }
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
@@ -27,6 +28,8 @@ tauri-plugin-clipboard-manager = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-single-instance = "2.4.2"
+time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = [

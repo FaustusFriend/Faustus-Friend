@@ -4,6 +4,7 @@ use tauri::{Emitter, Manager, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 mod clipboard_queue;
+mod diagnostics;
 use clipboard_queue::{cancel_clipboard_queue, start_clipboard_queue};
 
 /// True only when the window is genuinely on-screen for the user — visible
@@ -27,6 +28,7 @@ fn toggle_main_window(app: &tauri::AppHandle) {
     };
     if is_shown_to_user(&window) {
         let _ = window.hide();
+        diagnostics::log_event(app, "window_hidden", "info", serde_json::json!({ "reason": "toggle" }));
     } else {
         show_main_window(app);
     }
@@ -39,9 +41,16 @@ fn toggle_main_window(app: &tauri::AppHandle) {
 /// the hidden/minimized/both-handling logic lives in exactly one place.
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
+        let was_minimized = window.is_minimized().unwrap_or(false);
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
+        diagnostics::log_event(
+            app,
+            "window_shown",
+            "info",
+            serde_json::json!({ "restored_from_minimized": was_minimized }),
+        );
     }
 }
 
@@ -52,27 +61,76 @@ fn show_main_window(app: &tauri::AppHandle) {
 #[tauri::command]
 fn register_hotkey(app: tauri::AppHandle, shortcut: Option<String>) -> Result<(), String> {
     let gs = app.global_shortcut();
-    gs.unregister_all().map_err(|e| e.to_string())?;
+    if let Err(e) = gs.unregister_all() {
+        let msg = e.to_string();
+        diagnostics::log_event(
+            &app,
+            "hotkey_register",
+            "error",
+            serde_json::json!({ "stage": "unregister_all", "error": msg }),
+        );
+        return Err(msg);
+    }
 
     let shortcut = match shortcut {
         Some(s) if !s.trim().is_empty() => s,
-        _ => return Ok(()),
+        _ => {
+            diagnostics::log_event(&app, "hotkey_register", "info", serde_json::json!({ "disabled": true }));
+            return Ok(());
+        }
     };
 
-    let parsed: Shortcut = shortcut.parse().map_err(|e| format!("Invalid shortcut '{shortcut}': {e:?}"))?;
-    gs.on_shortcut(parsed, move |app, _shortcut, event| {
+    let parsed: Shortcut = match shortcut.parse() {
+        Ok(p) => p,
+        Err(e) => {
+            let msg = format!("Invalid shortcut '{shortcut}': {e:?}");
+            diagnostics::log_event(
+                &app,
+                "hotkey_register",
+                "error",
+                serde_json::json!({ "shortcut": shortcut, "error": msg }),
+            );
+            return Err(msg);
+        }
+    };
+
+    if let Err(e) = gs.on_shortcut(parsed, move |app, _shortcut, event| {
         if event.state() == ShortcutState::Pressed {
             toggle_main_window(app);
         }
-    })
-    .map_err(|e| e.to_string())?;
+    }) {
+        let msg = e.to_string();
+        diagnostics::log_event(
+            &app,
+            "hotkey_register",
+            "error",
+            serde_json::json!({ "shortcut": shortcut, "error": msg }),
+        );
+        return Err(msg);
+    }
 
+    diagnostics::log_event(&app, "hotkey_register", "info", serde_json::json!({ "shortcut": shortcut }));
     Ok(())
+}
+
+/// Bridges frontend-originated diagnostics (settings load/save outcomes,
+/// uncaught JS errors/rejections) into the same `events.ndjson` used by the
+/// Rust side, so support exports have one unified timeline.
+#[tauri::command]
+fn log_frontend_event(app: tauri::AppHandle, event: String, level: String, fields: serde_json::Value) {
+    diagnostics::log_event(&app, &event, &level, fields);
+}
+
+/// Builds the local diagnostics ZIP and returns its path. Never touches the
+/// network — see `diagnostics::export`.
+#[tauri::command]
+fn export_diagnostics(app: tauri::AppHandle) -> Result<String, String> {
+    diagnostics::export(&app).map(|path| path.display().to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         // Must be the first plugin registered (see tauri-plugin-single-instance
         // docs) — its callback runs in the *original* process whenever a second
         // instance is launched, so a second launch just surfaces the existing
@@ -85,7 +143,16 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
-            clipboard_queue::init(&app.handle().clone());
+            let handle = app.handle().clone();
+
+            // Diagnostics is a support convenience, never load-bearing — a
+            // failure to initialize it (e.g. an unwritable app data
+            // directory) must not stop the app from starting.
+            if let Err(e) = diagnostics::init(&handle) {
+                eprintln!("Faustus Friend: failed to initialize diagnostics: {e}");
+            }
+
+            clipboard_queue::init(&handle);
 
             let show_hide = MenuItemBuilder::with_id("show_hide", "Show/Hide").build(app)?;
             let settings = MenuItemBuilder::with_id("settings", "Settings").build(app)?;
@@ -124,7 +191,14 @@ pub fn run() {
             if let Some(icon) = app.default_window_icon() {
                 tray_builder = tray_builder.icon(icon.clone());
             }
-            tray_builder.build(app)?;
+
+            match tray_builder.build(app) {
+                Ok(_) => diagnostics::log_event(&handle, "tray_init", "info", serde_json::json!({})),
+                Err(e) => {
+                    diagnostics::log_event(&handle, "tray_init", "error", serde_json::json!({ "error": e.to_string() }));
+                    return Err(e.into());
+                }
+            }
 
             Ok(())
         })
@@ -135,13 +209,28 @@ pub fn run() {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.hide();
+                diagnostics::log_event(
+                    window.app_handle(),
+                    "window_hidden",
+                    "info",
+                    serde_json::json!({ "reason": "close_requested" }),
+                );
             }
         })
         .invoke_handler(tauri::generate_handler![
             register_hotkey,
             start_clipboard_queue,
-            cancel_clipboard_queue
+            cancel_clipboard_queue,
+            log_frontend_event,
+            export_diagnostics,
+            diagnostics::settings_store_status
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running tauri application");
+
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            diagnostics::log_shutdown(app_handle);
+        }
+    });
 }
