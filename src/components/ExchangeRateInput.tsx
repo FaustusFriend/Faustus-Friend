@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatFraction, parseDecimal } from "../lib/calculator";
 import { sanitizeDecimalInput } from "../lib/inputSanitize";
+import { selectAllOnFocus } from "../lib/selectAllOnFocus";
 
 // A complete (non-partial) decimal, e.g. "1.60" or "2" — as opposed to a
 // still-being-typed value like "1." or "" which should not trigger
@@ -122,6 +123,7 @@ export function ExchangeRateInput({ onPriceChange }: ExchangeRateInputProps) {
           value={priceText}
           onChange={(e) => handlePriceChange(e.target.value)}
           placeholder="0.00"
+          {...selectAllOnFocus}
         />
       </label>
       <div className="price-group-divider">
@@ -136,6 +138,7 @@ export function ExchangeRateInput({ onPriceChange }: ExchangeRateInputProps) {
           value={itemsText}
           onChange={(e) => handleItemsChange(e.target.value)}
           placeholder="0.00"
+          {...selectAllOnFocus}
         />
       </label>
       {error && <p className="error">{error}</p>}

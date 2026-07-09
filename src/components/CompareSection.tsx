@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { compareListings, type CompareMode, type ListingFormat } from "../lib/compare";
 import { sanitizeDecimalInput } from "../lib/inputSanitize";
+import { selectAllOnFocus } from "../lib/selectAllOnFocus";
 
 interface CompareSideState {
   rate: string;
@@ -78,6 +79,7 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
           value={state.rate}
           onChange={(e) => onChange({ rate: sanitizeDecimalInput(e.target.value, 2) })}
           placeholder="Chaos per Divine"
+          {...selectAllOnFocus}
         />
       </label>
 
@@ -103,6 +105,7 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
           value={state.chaos}
           onChange={(e) => onChange({ chaos: sanitizeDecimalInput(e.target.value, 2) })}
           placeholder={state.chaosFormat === "price" ? "Chaos per item" : "Items per chaos"}
+          {...selectAllOnFocus}
         />
       </div>
 
@@ -128,6 +131,7 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
           value={state.div}
           onChange={(e) => onChange({ div: sanitizeDecimalInput(e.target.value, 2) })}
           placeholder={state.divFormat === "price" ? "Divine per item" : "Items per divine"}
+          {...selectAllOnFocus}
         />
       </div>
 

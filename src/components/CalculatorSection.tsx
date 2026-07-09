@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { useClipboardQueue } from "../lib/clipboardQueue";
 import { BuyingSection } from "./BuyingSection";
 import { SellingSection } from "./SellingSection";
+import { QuickCalcSection } from "./QuickCalcSection";
 
 type CalcSubTab = "buying" | "selling";
 
@@ -14,6 +15,10 @@ export function CalculatorSection({ clipboardQueue }: CalculatorSectionProps) {
 
   return (
     <div className="calc-tabs">
+      <QuickCalcSection clipboardQueue={clipboardQueue} />
+
+      <h2 className="calc-primary-heading calc-primary-heading-divider">Trade Maximizer</h2>
+
       <nav className="subtab-bar">
         <button
           className={`subtab ${subTab === "buying" ? "subtab-active" : ""}`}

@@ -4,6 +4,7 @@ import {
   optimizeBuyTrade,
   optimizeSellTrade,
   parsePricePerItem,
+  quickMultiply,
 } from "./calculator";
 
 function expectOk<T>(result: { ok: boolean; value?: T; error?: string }): T {
@@ -223,6 +224,59 @@ describe("convertCurrency", () => {
 
   it("rejects a blank amount", () => {
     const result = convertCurrency({ amount: "", exchangeRate: "150", direction: "divineToChaos" });
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("quickMultiply", () => {
+  it("multiplies two whole numbers", () => {
+    const result = expectOk(quickMultiply("8", "40"));
+    expect(result).toBe("320.00");
+  });
+
+  it("multiplies decimal price by whole quantity", () => {
+    const result = expectOk(quickMultiply("1.5", "3"));
+    expect(result).toBe("4.50");
+  });
+
+  it("multiplies two decimal values", () => {
+    const result = expectOk(quickMultiply("1.25", "2.5"));
+    expect(result).toBe("3.13");
+  });
+
+  it("rounds a non-exact product to 2 decimals (round-half-up)", () => {
+    const result = expectOk(quickMultiply("1", "0.335"));
+    // 1 * 0.335 = 0.335 -> rounds to 0.34
+    expect(result).toBe("0.34");
+  });
+
+  it("does not floor to whole items — fractional quantities are exact", () => {
+    const result = expectOk(quickMultiply("10", "1.5"));
+    expect(result).toBe("15.00");
+  });
+
+  it("allows a zero price (plain multiplication, not a trade-optimization price)", () => {
+    const result = expectOk(quickMultiply("0", "5"));
+    expect(result).toBe("0.00");
+  });
+
+  it("rejects a blank price", () => {
+    const result = quickMultiply("", "5");
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects a blank quantity", () => {
+    const result = quickMultiply("5", "");
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects a non-numeric price", () => {
+    const result = quickMultiply("abc", "5");
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects a negative quantity", () => {
+    const result = quickMultiply("5", "-2");
     expect(result.ok).toBe(false);
   });
 });

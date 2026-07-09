@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { optimizeSellTrade, type SellTradeResult } from "../lib/calculator";
 import { sanitizeWholeNumberInput } from "../lib/inputSanitize";
+import { selectAllOnFocus } from "../lib/selectAllOnFocus";
 import type { useClipboardQueue } from "../lib/clipboardQueue";
 import { ExchangeRateInput } from "./ExchangeRateInput";
 
@@ -79,6 +80,7 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
           value={itemsToSell}
           onChange={(e) => setItemsToSell(sanitizeWholeNumberInput(e.target.value))}
           placeholder="0"
+          {...selectAllOnFocus}
         />
       </label>
 
@@ -86,7 +88,7 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
 
       {error && <p className="error">{error}</p>}
 
-      <h2 className="section-heading section-heading-divider">
+      <h2 className="section-heading calc-result-divider">
         <span>Result</span>
       </h2>
       <div className="result-block">
@@ -104,7 +106,6 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
             ⧉
           </button>
         </div>
-        <p className="hint">Rate: {hasResult ? `~${result!.approxRate}` : "—"}</p>
       </div>
 
       <button className="primary-button" disabled={!hasResult} onClick={copyTradePair}>

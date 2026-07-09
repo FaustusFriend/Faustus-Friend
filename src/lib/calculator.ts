@@ -198,6 +198,26 @@ export function optimizeSellTrade(
   });
 }
 
+/**
+ * Quick Calc: plain `price * quantity`, exact (BigInt) arithmetic, rounded
+ * to 2 decimals. Deliberately has no whole-item flooring, no reciprocal
+ * price/quantity behavior, and no connection to the trade-optimization
+ * functions above — this is the simple "how much for N of these?" case,
+ * distinct from {@link optimizeBuyTrade} / {@link optimizeSellTrade}.
+ */
+export function quickMultiply(price: string | number, quantity: string | number): CalcResult<string> {
+  const priceResult = parseDecimal(price, "Price");
+  if (!priceResult.ok) return priceResult;
+
+  const quantityResult = parseDecimal(quantity, "Quantity");
+  if (!quantityResult.ok) return quantityResult;
+
+  const numerator = priceResult.value.scaled * quantityResult.value.scaled;
+  const denominator = 10n ** BigInt(priceResult.value.decimals + quantityResult.value.decimals);
+
+  return ok(formatFraction(numerator, denominator, 2));
+}
+
 export type CurrencyDirection = "chaosToDivine" | "divineToChaos";
 
 export interface ConvertCurrencyInput {
