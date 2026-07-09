@@ -326,6 +326,10 @@ export function GridSection() {
 
   function handleClearGrid() {
     commitGrid(createEmptyGrid());
+    // Return focus to the grid so Ctrl+Z immediately undoes the clear,
+    // without requiring the user to click back into the worksheet first —
+    // matches Notes' Clear button, which keeps focus on the textarea.
+    containerRef.current?.focus();
   }
 
   const summary = selection ? summarizeCells(getSelectedCellTexts(grid, selection)) : null;

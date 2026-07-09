@@ -894,8 +894,15 @@ input:focus {
   border-color: var(--gold);
 }
 
+/* table-layout: fixed makes column widths come only from the widths
+   declared on the header row (.grid-corner + .grid-header-cell below) —
+   cell *content* is never consulted, so a long value can never grow a
+   column or shift its neighbors. Because the table's own width is 100%
+   (not the sum of the declared column widths), those declared widths act
+   as proportions: widening the window scales every column together. */
 .grid-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-family: var(--font-ui);
   font-size: 11px;
@@ -906,6 +913,7 @@ input:focus {
   top: 0;
   left: 0;
   z-index: 2;
+  width: 26px;
   background-color: var(--bg-panel);
   border-bottom: 1px solid var(--border-gold-soft);
 }
@@ -913,6 +921,7 @@ input:focus {
 .grid-header-cell {
   position: sticky;
   top: 0;
+  width: 52px;
   background-color: var(--bg-panel);
   color: var(--text-dim);
   font-weight: 400;
@@ -920,7 +929,9 @@ input:focus {
   padding: 6px 3px;
   border: none;
   border-bottom: 1px solid var(--border-gold-soft);
-  min-width: 28px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .grid-table tbody th.grid-header-cell {
@@ -939,13 +950,14 @@ input:focus {
   border-top: 1px solid rgba(200, 170, 110, 0.08);
   border-left: 1px solid rgba(200, 170, 110, 0.08);
   padding: 6px 6px;
-  min-width: 52px;
   height: 22px;
   background-color: var(--bg-cell);
   color: var(--text-cell);
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: cell;
 }
 
