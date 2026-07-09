@@ -58,27 +58,55 @@ contribution or feature request that conflicts with them will be declined.
   (Tauri needs the MSVC linker) and WebView2 Runtime (preinstalled on most
   Windows 10/11 systems)
 
+# Installation
+
+## Recommended (Most Users)
+
+1. Download the latest installer from the **Releases** page.
+2. Run the installer.
+3. Launch **Faustus Friend** from the Start Menu.
+4. Press **Ctrl+Shift+Space** (or your configured hotkey) to show or hide the overlay.
+
+The installer creates:
+
+- A Start Menu shortcut
+- An application icon
+- An uninstaller
+
+No terminal or command line is required.
+
+---
+
+# Building from Source
+
+These instructions are only for developers who want to build Faustus Friend themselves.
+
+## Prerequisites
+
+- Node.js
+- Rust
+- Visual Studio Build Tools
+
 ## Setup
 
-```sh
+```bash
 npm install
 ```
 
-## Run in development
+## Run in Development
 
-```sh
+```bash
 npm run tauri dev
 ```
 
-This starts the Vite dev server and launches the native window. First build
-compiles the Rust backend and can take a few minutes; subsequent runs are
-much faster.
+This starts the Vite development server and launches the native Tauri window. The first build compiles the Rust backend and may take several minutes.
 
 ## Build
 
-```sh
-npm run build          # frontend typecheck + Vite build
-npm run tauri build    # full native app bundle
+```bash
+npm run build
+npm run tauri build
+```
 ```
 
 ## Usage
