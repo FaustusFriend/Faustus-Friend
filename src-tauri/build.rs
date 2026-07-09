@@ -25,6 +25,12 @@ fn main() {
 
     // Re-run when HEAD moves so the embedded commit hash stays current
     // across incremental builds, without forcing a rebuild on every commit
-    // in the repo's history.
+    // in the repo's history. `.git/HEAD` alone only changes on a branch
+    // switch — its content is just "ref: refs/heads/<branch>", which is
+    // unchanged by an ordinary commit. `.git/logs/HEAD` (the reflog) is
+    // appended to on every commit, checkout, merge, and rebase, so watching
+    // it too is what actually keeps the embedded commit from going stale
+    // between builds on the same branch.
     println!("cargo:rerun-if-changed=../.git/HEAD");
+    println!("cargo:rerun-if-changed=../.git/logs/HEAD");
 }
