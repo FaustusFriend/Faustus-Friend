@@ -18,13 +18,14 @@ interface QuickCalcSectionProps {
 export function QuickCalcSection({ clipboardQueue }: QuickCalcSectionProps) {
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("");
+  const [copyFailed, setCopyFailed] = useState(false);
 
   const result = quickMultiply(price, quantity);
   const total = result.ok ? result.value : null;
 
   async function copyTotal() {
     if (total === null) return;
-    await clipboardQueue.copySingle(total);
+    setCopyFailed(!(await clipboardQueue.copySingle(total)));
   }
 
   return (
@@ -59,6 +60,7 @@ export function QuickCalcSection({ clipboardQueue }: QuickCalcSectionProps) {
           </button>
         </div>
       </div>
+      {copyFailed && <p className="error">Copy failed — try again.</p>}
     </div>
   );
 }

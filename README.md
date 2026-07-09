@@ -83,7 +83,7 @@ npm run tauri build    # full native app bundle
 
 ## Usage
 
-- Press the configured hotkey (default: `F9`) to show/hide the overlay window.
+- Press the configured hotkey (default: `Ctrl+Shift+Space`) to show/hide the overlay window.
 - Click the gear icon in the header to open settings and change the hotkey.
   Hotkey format follows Tauri's shortcut syntax, e.g. `F9`, `Alt+C`, `Ctrl+Shift+K`.
 - Settings are persisted locally to a `settings.json` file in the app's

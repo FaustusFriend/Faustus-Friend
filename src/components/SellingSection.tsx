@@ -16,6 +16,7 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
   const [pricePerItem, setPricePerItem] = useState<string | null>(null);
   const [result, setResult] = useState<SellTradeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
   const armedPairRef = useRef<{ sell: number; receive: number } | null>(null);
 
   useEffect(() => {
@@ -52,18 +53,20 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
 
   async function copySell() {
     if (!result) return;
-    await clipboardQueue.copySingle(String(result.sell));
+    setCopyFailed(!(await clipboardQueue.copySingle(String(result.sell))));
   }
 
   async function copyReceive() {
     if (!result) return;
-    await clipboardQueue.copySingle(String(result.receive));
+    setCopyFailed(!(await clipboardQueue.copySingle(String(result.receive))));
   }
 
   async function copyTradePair() {
     if (!result) return;
     armedPairRef.current = { sell: result.sell, receive: result.receive };
-    await clipboardQueue.start(SECTION_ID, String(result.sell), String(result.receive));
+    const ok = await clipboardQueue.start(SECTION_ID, String(result.sell), String(result.receive));
+    if (!ok) armedPairRef.current = null;
+    setCopyFailed(!ok);
   }
 
   const queueActiveHere = clipboardQueue.status.armedForSection === SECTION_ID;
@@ -112,6 +115,7 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
         Copy Trade Pair
       </button>
 
+      {copyFailed && <p className="error">Copy failed — try again.</p>}
       {queueActiveHere && clipboardQueue.status.nextValue !== null && (
         <p className="status">Next paste: {clipboardQueue.status.nextValue}</p>
       )}

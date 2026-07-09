@@ -1,3 +1,61 @@
+/* Self-hosted fonts — replaces the former Google Fonts <link> in index.html
+   so the app never makes an automatic network request just to render its
+   own UI (see README's "no automatic uploads" / local-first principle).
+   Files are the same Cinzel/Hanken Grotesk families, "latin" subset,
+   fetched once from fonts.gstatic.com (the same origin the removed <link>
+   pointed at) and committed under src/assets/fonts/. Both are variable
+   fonts, so one file per family covers every weight previously requested
+   (Cinzel 500/600/700, Hanken Grotesk 400/600/700) — each @font-face below
+   just pins one static weight out of that file, exactly like Google's own
+   generated CSS did. Non-Latin glyphs and symbol characters (⧉ ◆ ⚙ → ☕ etc.)
+   were never covered by the remote font either; they already fell back to
+   the system font and still do. Cinzel and Hanken Grotesk are both
+   licensed under the SIL Open Font License 1.1.
+   Source: https://fonts.google.com/specimen/Cinzel
+           https://fonts.google.com/specimen/Hanken+Grotesk */
+@font-face {
+  font-family: "Cinzel";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/cinzel-latin-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Cinzel";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/cinzel-latin-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Cinzel";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/cinzel-latin-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/hanken-grotesk-latin-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/hanken-grotesk-latin-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/hanken-grotesk-latin-variable.woff2") format("woff2");
+}
+
 :root {
   --bg-card: #0a0908;
   --bg-header: #100d09;

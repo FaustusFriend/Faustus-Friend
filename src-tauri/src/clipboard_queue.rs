@@ -123,12 +123,29 @@ mod windows_impl {
         CallNextHookEx(None, code, wparam, lparam)
     }
 
-    fn spawn_hook_thread() {
-        std::thread::spawn(|| unsafe {
+    fn spawn_hook_thread(app: AppHandle) {
+        std::thread::spawn(move || unsafe {
             let _thread_id = GetCurrentThreadId();
             let hook = match SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), None, 0) {
                 Ok(hook) => hook,
-                Err(_) => return,
+                Err(e) => {
+                    // Distinct from the (unlogged) normal-shutdown exit below,
+                    // which only happens after this hook installed
+                    // successfully and its message loop later ends —
+                    // "clipboard_hook_install" only ever fires here, at
+                    // startup, and only on failure. Without this, a failed
+                    // install (e.g. blocked by security software or a
+                    // locked-down Group Policy) left Copy Trade Pair's
+                    // paste-swap silently non-functional with zero trace in
+                    // diagnostics.
+                    crate::diagnostics::log_event(
+                        &app,
+                        "clipboard_hook_install",
+                        "error",
+                        serde_json::json!({ "error": e.to_string() }),
+                    );
+                    return;
+                }
             };
             let mut msg = MSG::default();
             // Low-level keyboard hooks require their installing thread to
@@ -196,7 +213,7 @@ mod windows_impl {
     pub fn init(app: &AppHandle) {
         let (tx, rx) = mpsc::channel::<PasteSignal>();
         PASTE_TX.get_or_init(|| Mutex::new(Some(tx)));
-        spawn_hook_thread();
+        spawn_hook_thread(app.clone());
         spawn_consumer_thread(app.clone(), rx);
     }
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { logEvent } from "./diagnostics";
 
 export interface ClipboardQueueStatus {
   /** Which section (e.g. "buy" / "sell") currently owns the armed queue, if any. */
@@ -56,23 +57,37 @@ export function useClipboardQueue() {
     }
   }, []);
 
-  const start = useCallback(async (sectionId: string, first: string, second: string) => {
+  /** Arms the two-value paste queue. Returns `false` (state left idle) if
+   * the native side rejects the request — e.g. another process is holding
+   * the clipboard — so callers can show a simple failure message without
+   * needing their own try/catch around every button. */
+  const start = useCallback(async (sectionId: string, first: string, second: string): Promise<boolean> => {
     sectionRef.current = sectionId;
     setStatus({ armedForSection: sectionId, nextValue: first });
     try {
       await invoke("start_clipboard_queue", { first, second });
+      return true;
     } catch (err) {
       sectionRef.current = null;
       setStatus(IDLE_STATUS);
-      throw err;
+      void logEvent("clipboard_copy_failed", "error", { mode: "start", error: String(err) });
+      return false;
     }
   }, []);
 
-  /** Cancels any active queue, then copies a single value directly. */
+  /** Cancels any active queue, then copies a single value directly.
+   * Returns `false` (instead of throwing) on failure so callers can show a
+   * simple failure message without needing their own try/catch. */
   const copySingle = useCallback(
-    async (value: string) => {
+    async (value: string): Promise<boolean> => {
       await cancel();
-      await writeText(value);
+      try {
+        await writeText(value);
+        return true;
+      } catch (err) {
+        void logEvent("clipboard_copy_failed", "error", { mode: "single", error: String(err) });
+        return false;
+      }
     },
     [cancel],
   );
