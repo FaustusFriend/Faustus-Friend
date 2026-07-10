@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { compareListings, type CompareMode, type ListingFormat } from "../lib/compare";
+import { compareListings, formatCompareVerdict, trimTrailingZeros, type CompareMode, type ListingFormat } from "../lib/compare";
 import { sanitizeDecimalInput } from "../lib/inputSanitize";
 import { selectAllOnFocus } from "../lib/selectAllOnFocus";
 
@@ -18,11 +18,6 @@ const EMPTY_SIDE: CompareSideState = {
   div: "",
   divFormat: "price",
 };
-
-/** Trims a fixed-2dp string like "1.00"/"2.33" down to "1"/"2.33" for display. */
-function trimTrailingZeros(value: string): string {
-  return String(parseFloat(value));
-}
 
 interface CompareFormProps {
   mode: CompareMode;
@@ -54,16 +49,9 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
   if (error) {
     verdictSubline = error;
   } else if (result) {
-    if (result.winner === "tie") {
-      verdictTitle = "Identical value";
-    } else {
-      const currencyName = result.winner === "chaos" ? "Chaos" : "Divines";
-      verdictTitle = mode === "buying" ? `Buy in ${currencyName}` : `List in ${currencyName}`;
-      const pct = trimTrailingZeros(result.diffPercent);
-      const diff = trimTrailingZeros(result.diffChaos);
-      const comparativeWord = mode === "buying" ? "cheaper" : "higher";
-      verdictSubline = `${pct}% ${comparativeWord} · Δ ${diff} chaos/item`;
-    }
+    const verdict = formatCompareVerdict(mode, result);
+    verdictTitle = verdict.title;
+    verdictSubline = verdict.subline;
   }
 
   return (

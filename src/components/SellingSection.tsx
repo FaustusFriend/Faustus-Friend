@@ -109,6 +109,12 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
             ⧉
           </button>
         </div>
+        {hasResult && result!.remainder > 0 && (
+          <div className="result-row">
+            <span className="result-label">Remaining</span>
+            <span className="result-value">{result!.remainder}</span>
+          </div>
+        )}
       </div>
 
       <button className="primary-button" disabled={!hasResult} onClick={copyTradePair}>

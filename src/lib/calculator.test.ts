@@ -135,6 +135,7 @@ describe("optimizeSellTrade", () => {
   it("sells all items and floors the currency received", () => {
     const result = expectOk(optimizeSellTrade(62, "1.60"));
     expect(result.sell).toBe(62);
+    expect(result.remainder).toBe(0);
     expect(result.receive).toBe(99);
     expect(result.approxRate).toBe("1.60");
   });
@@ -142,12 +143,28 @@ describe("optimizeSellTrade", () => {
   it("uses the full item count exactly when value divides evenly", () => {
     const result = expectOk(optimizeSellTrade(50, "2.00"));
     expect(result.sell).toBe(50);
+    expect(result.remainder).toBe(0);
     expect(result.receive).toBe(100);
   });
 
-  it("floors currency received when the total value isn't a whole number", () => {
+  it("Task 20 Bug 1: excludes items that would floor away for zero currency from the sell quantity", () => {
+    // Stock 108 at a rate of 5 items per currency (price per item = 1/5 =
+    // 0.20). Only 105 items (21 full lots of 5) are needed to earn the 21
+    // currency received — the other 3 would be handed over for nothing.
+    const result = expectOk(optimizeSellTrade(108, "0.20"));
+    expect(result.sell).toBe(105);
+    expect(result.receive).toBe(21);
+    expect(result.remainder).toBe(3);
+  });
+
+  it("reports zero sell quantity (not the full stock) when the total value floors to zero currency", () => {
+    // Task 20 Bug 1 follow-through: if even the full stock's value floors
+    // to 0 currency, selling any of it earns nothing, so none of it should
+    // be reported as sellable — the previous behavior recommended selling
+    // all 3 items away for 0 currency in return.
     const result = expectOk(optimizeSellTrade(3, "0.33"));
-    expect(result.sell).toBe(3);
+    expect(result.sell).toBe(0);
+    expect(result.remainder).toBe(3);
     expect(result.receive).toBe(0); // 0.99 total, floored to 0 whole currency
   });
 
@@ -166,6 +183,7 @@ describe("optimizeSellTrade", () => {
     }
 
     expect(result.sell).toBe(items);
+    expect(result.remainder).toBe(0);
     expect(BigInt(result.receive)).toBe(bestBruteForceReceive);
   });
 

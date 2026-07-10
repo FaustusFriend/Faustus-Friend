@@ -161,8 +161,17 @@ export function optimizeBuyTrade(
 }
 
 export interface SellTradeResult {
-  /** Whole-number item quantity sold (always the full amount offered). */
+  /**
+   * Whole-number item quantity actually sold. Never exceeds `itemsToSell` —
+   * see {@link remainder}.
+   */
   sell: number;
+  /**
+   * Items left over from `itemsToSell` after selling `sell` — i.e. items
+   * that would floor away for zero currency if handed over anyway. Always
+   * `itemsToSell - sell`; 0 when the full stock is sellable.
+   */
+  remainder: number;
   /** Whole-number currency amount received (maximized). */
   receive: number;
   /** Realized price per item (receive / sell), rounded to 2 decimals. */
@@ -171,9 +180,15 @@ export interface SellTradeResult {
 
 /**
  * Given a whole number of items to sell and a price per item, returns the
- * currency received. Since price is positive, receive is maximized by
- * selling all offered items — the optimization is in how the whole-number
- * currency payout is derived (floored, never rounded up past the true value).
+ * currency received and the quantity actually needed to earn it.
+ *
+ * `receive` is the floor of the full stock's total value — selling *more*
+ * than necessary to reach that floored amount would hand over items for
+ * nothing, since their value falls entirely inside the rounding loss. `sell`
+ * is therefore the minimum whole-item quantity whose value covers `receive`
+ * exactly (a ceiling division): any fewer items would fall short of it, and
+ * any more would exceed it without earning anything extra. Items beyond
+ * that are reported as `remainder` rather than included in `sell`.
  */
 export function optimizeSellTrade(
   itemsToSell: string | number,
@@ -191,10 +206,14 @@ export function optimizeSellTrade(
   const totalCents = items * priceCents; // exact, no rounding needed here
   const receive = totalCents / 100n; // floor to a whole currency amount
 
+  const sell = receive === 0n ? 0n : (receive * 100n + priceCents - 1n) / priceCents; // ceil
+  const remainder = items - sell;
+
   return ok({
-    sell: Number(items),
+    sell: Number(sell),
+    remainder: Number(remainder),
     receive: Number(receive),
-    approxRate: receive === 0n ? "0.00" : formatFraction(receive * 100n, items * 100n),
+    approxRate: receive === 0n ? "0.00" : formatFraction(receive * 100n, sell * 100n),
   });
 }
 
