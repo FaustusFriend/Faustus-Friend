@@ -3,10 +3,10 @@ import { formatFraction, parseDecimal } from "../lib/calculator";
 import { sanitizeDecimalInput } from "../lib/inputSanitize";
 import { selectAllOnFocus } from "../lib/selectAllOnFocus";
 
-// A complete (non-partial) decimal, e.g. "1.60" or "2" — as opposed to a
-// still-being-typed value like "1." or "" which should not trigger
+// A complete (non-partial) decimal, e.g. "1.60", "2", or ".5" — as opposed
+// to a still-being-typed value like "1." or "" which should not trigger
 // recalculation yet.
-const COMPLETE_DECIMAL = /^\d+(\.\d+)?$/;
+const COMPLETE_DECIMAL = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
 
 interface ExchangeRateInputProps {
   /** Called with the canonical price-per-item (2-decimal string), or null when empty/invalid. */
@@ -70,7 +70,10 @@ export function ExchangeRateInput({ onPriceChange }: ExchangeRateInputProps) {
     }
 
     const outcome = toCents(sanitized, "Price per item");
-    if (outcome === null) return; // incomplete, wait for more input
+    if (outcome === null) {
+      setError(null); // incomplete, wait for more input — don't leave a stale error showing
+      return;
+    }
     if ("error" in outcome) {
       setError(outcome.error);
       onPriceChange(null);
@@ -94,7 +97,10 @@ export function ExchangeRateInput({ onPriceChange }: ExchangeRateInputProps) {
     }
 
     const outcome = toCents(sanitized, "Items per currency");
-    if (outcome === null) return; // incomplete, wait for more input
+    if (outcome === null) {
+      setError(null); // incomplete, wait for more input — don't leave a stale error showing
+      return;
+    }
     if ("error" in outcome) {
       setError(outcome.error);
       onPriceChange(null);

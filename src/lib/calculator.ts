@@ -14,7 +14,10 @@ function fail<T>(error: string): CalcResult<T> {
   return { ok: false, error };
 }
 
-const DECIMAL_PATTERN = /^\d+(\.\d+)?$/;
+// Accepts "5", "5.5", and leading-decimal notation ".5" (no digit before
+// the point) — all are valid manual entries. Rejects a bare ".", a
+// trailing-dot-no-digits form like "5.", multiple dots, and signs.
+const DECIMAL_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
 
 export interface ParsedDecimal {
   /** The decimal value scaled up to an integer, e.g. "1.60" -> 160n with decimals=2 */
