@@ -64,7 +64,7 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
   async function copyTradePair() {
     if (!result) return;
     armedPairRef.current = { sell: result.sell, receive: result.receive };
-    const ok = await clipboardQueue.start(SECTION_ID, String(result.sell), String(result.receive));
+    const ok = await clipboardQueue.start(SECTION_ID, String(result.receive), String(result.sell));
     if (!ok) armedPairRef.current = null;
     setCopyFailed(!ok);
   }
@@ -96,16 +96,16 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
       </h2>
       <div className="result-block">
         <div className="result-row">
-          <span className="result-label">Sell</span>
-          <span className="result-value">{hasResult ? result!.sell : "—"}</span>
-          <button className="copy-button" title="Copy" disabled={!hasResult} onClick={copySell}>
+          <span className="result-label">Receive</span>
+          <span className="result-value result-value-sell">{hasResult ? result!.receive : "—"}</span>
+          <button className="copy-button" title="Copy" disabled={!hasResult} onClick={copyReceive}>
             ⧉
           </button>
         </div>
         <div className="result-row">
-          <span className="result-label">Receive</span>
-          <span className="result-value result-value-sell">{hasResult ? result!.receive : "—"}</span>
-          <button className="copy-button" title="Copy" disabled={!hasResult} onClick={copyReceive}>
+          <span className="result-label">Sell</span>
+          <span className="result-value">{hasResult ? result!.sell : "—"}</span>
+          <button className="copy-button" title="Copy" disabled={!hasResult} onClick={copySell}>
             ⧉
           </button>
         </div>
