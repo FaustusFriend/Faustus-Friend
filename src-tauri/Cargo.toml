@@ -1,6 +1,6 @@
 [package]
 name = "faustus-friend"
-version = "0.1.1"
+version = "0.1.2"
 description = "A Windows desktop companion app for Path of Exile trading"
 authors = ["Nick Earls"]
 edition = "2021"
