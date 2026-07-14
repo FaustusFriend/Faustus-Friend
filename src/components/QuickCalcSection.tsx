@@ -2,6 +2,7 @@ import { useState } from "react";
 import { quickMultiply } from "../lib/calculator";
 import { sanitizeDecimalInput } from "../lib/inputSanitize";
 import { selectAllOnFocus } from "../lib/selectAllOnFocus";
+import { splitQuickCalcResult } from "../lib/quickCalcFormat";
 import type { useClipboardQueue } from "../lib/clipboardQueue";
 
 interface QuickCalcSectionProps {
@@ -22,10 +23,11 @@ export function QuickCalcSection({ clipboardQueue }: QuickCalcSectionProps) {
 
   const result = quickMultiply(price, quantity);
   const total = result.ok ? result.value : null;
+  const parts = total !== null ? splitQuickCalcResult(total) : null;
 
   async function copyTotal() {
-    if (total === null) return;
-    setCopyFailed(!(await clipboardQueue.copySingle(total)));
+    if (!parts) return;
+    setCopyFailed(!(await clipboardQueue.copySingle(parts.whole)));
   }
 
   return (
@@ -54,12 +56,17 @@ export function QuickCalcSection({ clipboardQueue }: QuickCalcSectionProps) {
         </label>
         <div className="result-row quick-calc-total">
           <span className="result-label">Total</span>
-          <span className="result-value">{total ?? "—"}</span>
-          <button className="copy-button" title="Copy" disabled={total === null} onClick={copyTotal}>
+          <span className="result-value">{parts ? (parts.isWhole ? parts.whole : `${parts.whole}*`) : "—"}</span>
+          <button className="copy-button" title="Copy" disabled={!parts} onClick={copyTotal}>
             ⧉
           </button>
         </div>
       </div>
+      {parts && !parts.isWhole && (
+        <p className="status">
+          Exact result: {total} · Copies: {parts.whole}
+        </p>
+      )}
       {copyFailed && <p className="error">Copy failed — try again.</p>}
     </div>
   );
