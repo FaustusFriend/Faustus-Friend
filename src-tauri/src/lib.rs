@@ -28,7 +28,12 @@ fn toggle_main_window(app: &tauri::AppHandle) {
     };
     if is_shown_to_user(&window) {
         let _ = window.hide();
-        diagnostics::log_event(app, "window_hidden", "info", serde_json::json!({ "reason": "toggle" }));
+        diagnostics::log_event(
+            app,
+            "window_hidden",
+            "info",
+            serde_json::json!({ "reason": "toggle" }),
+        );
     } else {
         show_main_window(app);
     }
@@ -75,7 +80,12 @@ fn register_hotkey(app: tauri::AppHandle, shortcut: Option<String>) -> Result<()
     let shortcut = match shortcut {
         Some(s) if !s.trim().is_empty() => s,
         _ => {
-            diagnostics::log_event(&app, "hotkey_register", "info", serde_json::json!({ "disabled": true }));
+            diagnostics::log_event(
+                &app,
+                "hotkey_register",
+                "info",
+                serde_json::json!({ "disabled": true }),
+            );
             return Ok(());
         }
     };
@@ -109,7 +119,12 @@ fn register_hotkey(app: tauri::AppHandle, shortcut: Option<String>) -> Result<()
         return Err(msg);
     }
 
-    diagnostics::log_event(&app, "hotkey_register", "info", serde_json::json!({ "shortcut": shortcut }));
+    diagnostics::log_event(
+        &app,
+        "hotkey_register",
+        "info",
+        serde_json::json!({ "shortcut": shortcut }),
+    );
     Ok(())
 }
 
@@ -117,7 +132,12 @@ fn register_hotkey(app: tauri::AppHandle, shortcut: Option<String>) -> Result<()
 /// uncaught JS errors/rejections) into the same `events.ndjson` used by the
 /// Rust side, so support exports have one unified timeline.
 #[tauri::command]
-fn log_frontend_event(app: tauri::AppHandle, event: String, level: String, fields: serde_json::Value) {
+fn log_frontend_event(
+    app: tauri::AppHandle,
+    event: String,
+    level: String,
+    fields: serde_json::Value,
+) {
     diagnostics::log_event(&app, &event, &level, fields);
 }
 
@@ -193,9 +213,16 @@ pub fn run() {
             }
 
             match tray_builder.build(app) {
-                Ok(_) => diagnostics::log_event(&handle, "tray_init", "info", serde_json::json!({})),
+                Ok(_) => {
+                    diagnostics::log_event(&handle, "tray_init", "info", serde_json::json!({}))
+                }
                 Err(e) => {
-                    diagnostics::log_event(&handle, "tray_init", "error", serde_json::json!({ "error": e.to_string() }));
+                    diagnostics::log_event(
+                        &handle,
+                        "tray_init",
+                        "error",
+                        serde_json::json!({ "error": e.to_string() }),
+                    );
                     return Err(e.into());
                 }
             }

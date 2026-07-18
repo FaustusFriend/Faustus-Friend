@@ -109,7 +109,10 @@ mod windows_impl {
             if kb.vkCode == VK_V {
                 if msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN {
                     let ctrl_down = (GetAsyncKeyState(VK_CONTROL.0 as i32) as u16 & 0x8000) != 0;
-                    if ctrl_down && !V_HELD.swap(true, Ordering::SeqCst) && ARMED.load(Ordering::SeqCst) {
+                    if ctrl_down
+                        && !V_HELD.swap(true, Ordering::SeqCst)
+                        && ARMED.load(Ordering::SeqCst)
+                    {
                         send_signal(PasteSignal::Down(GENERATION.load(Ordering::SeqCst)));
                     }
                 } else if msg == WM_KEYUP || msg == WM_SYSKEYUP {
@@ -163,7 +166,9 @@ mod windows_impl {
             for signal in rx {
                 match signal {
                     PasteSignal::Down(generation) => {
-                        if GENERATION.load(Ordering::SeqCst) != generation || !ARMED.load(Ordering::SeqCst) {
+                        if GENERATION.load(Ordering::SeqCst) != generation
+                            || !ARMED.load(Ordering::SeqCst)
+                        {
                             continue;
                         }
                         let paste_count = {
@@ -183,7 +188,9 @@ mod windows_impl {
                         }
                     }
                     PasteSignal::Up(generation) => {
-                        if GENERATION.load(Ordering::SeqCst) != generation || !ARMED.load(Ordering::SeqCst) {
+                        if GENERATION.load(Ordering::SeqCst) != generation
+                            || !ARMED.load(Ordering::SeqCst)
+                        {
                             continue;
                         }
                         let second_value = {
@@ -198,9 +205,14 @@ mod windows_impl {
                             data.second_value.clone()
                         };
                         std::thread::sleep(SWAP_SAFETY_MARGIN);
-                        if GENERATION.load(Ordering::SeqCst) == generation && ARMED.load(Ordering::SeqCst) {
+                        if GENERATION.load(Ordering::SeqCst) == generation
+                            && ARMED.load(Ordering::SeqCst)
+                        {
                             let _ = app.clipboard().write_text(second_value.clone());
-                            let _ = app.emit("clipboard-queue-advanced", serde_json::json!({ "next": second_value }));
+                            let _ = app.emit(
+                                "clipboard-queue-advanced",
+                                serde_json::json!({ "next": second_value }),
+                            );
                         }
                     }
                 }
@@ -222,13 +234,17 @@ mod windows_impl {
         let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
 
         {
-            let mut data = queue_data().lock().map_err(|_| "clipboard queue state poisoned")?;
+            let mut data = queue_data()
+                .lock()
+                .map_err(|_| "clipboard queue state poisoned")?;
             data.second_value = second;
             data.paste_count = 0;
             data.swapped = false;
         }
 
-        app.clipboard().write_text(first).map_err(|e| e.to_string())?;
+        app.clipboard()
+            .write_text(first)
+            .map_err(|e| e.to_string())?;
         ARMED.store(true, Ordering::SeqCst);
 
         let app_clone = app.clone();
@@ -256,7 +272,11 @@ pub use windows_impl::{cancel as cancel_impl, init, start as start_impl};
 pub fn init(_app: &tauri::AppHandle) {}
 
 #[tauri::command]
-pub fn start_clipboard_queue(app: tauri::AppHandle, first: String, second: String) -> Result<(), String> {
+pub fn start_clipboard_queue(
+    app: tauri::AppHandle,
+    first: String,
+    second: String,
+) -> Result<(), String> {
     #[cfg(windows)]
     {
         start_impl(&app, first, second)

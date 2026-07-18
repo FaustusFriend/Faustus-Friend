@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import { DEFAULT_SETTINGS, loadSettings } from "./settings";
+import { DEFAULT_SETTINGS } from "./settings";
 import { useClipboardQueue } from "./lib/clipboardQueue";
+import { runStartupInitialization } from "./lib/startup";
 import type { HotkeyMap } from "./lib/hotkeys";
 import { CalculatorSection } from "./components/CalculatorSection";
 import { CompareSection } from "./components/CompareSection";
@@ -32,14 +32,17 @@ function App() {
   const didMountRef = useRef(false);
 
   useEffect(() => {
+    // runStartupInitialization() is guarded to run at most once per app
+    // lifetime, so this effect is safe to invoke twice under React Strict
+    // Mode's dev-only mount/cleanup/remount — see src/lib/startup.ts. No
+    // cleanup function is returned: there's nothing to unregister, and
+    // doing so would risk leaving a valid hotkey unregistered after the
+    // Strict Mode test-unmount.
     (async () => {
-      const settings = await loadSettings();
+      const { settings, hotkeyError } = await runStartupInitialization();
       setHotkeys(settings.hotkeys);
-      const toggleOverlayShortcut = settings.hotkeys.toggleOverlay;
-      try {
-        await invoke("register_hotkey", { shortcut: toggleOverlayShortcut });
-      } catch (err) {
-        setHotkeyStatus(`Failed to register hotkey "${toggleOverlayShortcut}": ${err}`);
+      if (hotkeyError) {
+        setHotkeyStatus(hotkeyError);
       }
     })();
   }, []);

@@ -43,8 +43,12 @@ pub struct BuildInfo {
 fn collect_build_info() -> BuildInfo {
     BuildInfo {
         app_version: env!("CARGO_PKG_VERSION").to_string(),
-        git_commit: option_env!("FAUSTUS_GIT_COMMIT").unwrap_or("unknown").to_string(),
-        build_date: option_env!("FAUSTUS_BUILD_DATE").unwrap_or("unknown").to_string(),
+        git_commit: option_env!("FAUSTUS_GIT_COMMIT")
+            .unwrap_or("unknown")
+            .to_string(),
+        build_date: option_env!("FAUSTUS_BUILD_DATE")
+            .unwrap_or("unknown")
+            .to_string(),
         platform: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
     }
@@ -176,7 +180,13 @@ pub fn log_line(app: &AppHandle, level: &str, message: &str) {
         return;
     };
     let _guard = state.write_lock.lock().unwrap_or_else(|e| e.into_inner());
-    let line = format!("[{}] [{}] session={} {}\n", now_rfc3339(), level.to_uppercase(), state.session_id, message);
+    let line = format!(
+        "[{}] [{}] session={} {}\n",
+        now_rfc3339(),
+        level.to_uppercase(),
+        state.session_id,
+        message
+    );
     append_to_file(&state.app_log_path, &line);
 }
 
@@ -203,7 +213,12 @@ fn install_panic_hook(app: AppHandle) {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         log_line(&app, "error", &format!("panic: {info}"));
-        log_event(&app, "panic", "error", serde_json::json!({ "message": info.to_string() }));
+        log_event(
+            &app,
+            "panic",
+            "error",
+            serde_json::json!({ "message": info.to_string() }),
+        );
         default_hook(info);
     }));
 }
@@ -218,7 +233,10 @@ fn redact_sensitive(value: &mut serde_json::Value) {
         serde_json::Value::Object(map) => {
             for (key, v) in map.iter_mut() {
                 let lower = key.to_lowercase();
-                if SENSITIVE_KEY_MARKERS.iter().any(|marker| lower.contains(marker)) {
+                if SENSITIVE_KEY_MARKERS
+                    .iter()
+                    .any(|marker| lower.contains(marker))
+                {
                     *v = serde_json::Value::String("[redacted]".to_string());
                 } else {
                     redact_sensitive(v);
@@ -286,7 +304,11 @@ fn extract_recent_errors(events_path: &Path, limit: usize) -> String {
         .filter(|line| {
             serde_json::from_str::<serde_json::Value>(line)
                 .ok()
-                .and_then(|v| v.get("level").and_then(|l| l.as_str()).map(|s| s == "error"))
+                .and_then(|v| {
+                    v.get("level")
+                        .and_then(|l| l.as_str())
+                        .map(|s| s == "error")
+                })
                 .unwrap_or(false)
         })
         .collect();
@@ -297,7 +319,7 @@ fn extract_recent_errors(events_path: &Path, limit: usize) -> String {
     format!("{}\n", error_lines[start..].join("\n"))
 }
 
-fn build_readme(session_id: &str, app_version: &str) -> String {
+fn build_readme(session_id: &str, app_version: &str, max_history_sessions: usize) -> String {
     format!(
         "Faustus Friend Diagnostics Bundle\n\
          ==================================\n\
@@ -313,18 +335,33 @@ fn build_readme(session_id: &str, app_version: &str) -> String {
          \n\
          Contents\n\
          --------\n\
-         - app.log                Plain-text application log.\n\
-         - events.ndjson          Structured event log (one JSON object per\n\
-         \x20                        line), each tagged with the session ID that\n\
-         \x20                        generated it.\n\
-         - settings-snapshot.json A copy of your current settings. Fields that\n\
-         \x20                        look like a credential (password/token/secret/\n\
-         \x20                        API key) are redacted before export; as of this\n\
-         \x20                        version, settings only contain hotkey bindings.\n\
-         - metadata.json          App version, build info, platform/architecture,\n\
-         \x20                        and Tauri/WebView2 runtime versions.\n\
-         - recent-errors.ndjson   The most recent error-level events, for quick\n\
-         \x20                        triage.\n\
+         - current-session/app.log       Plain-text log entries from only the\n\
+         \x20                              session that generated this bundle\n\
+         \x20                              (Session ID above).\n\
+         - current-session/events.ndjson Structured event log (one JSON object\n\
+         \x20                              per line) from only that same session.\n\
+         - history/app.log               Plain-text log entries from up to the\n\
+         \x20                              {max_history_sessions} most recent prior sessions —\n\
+         \x20                              this can include sessions from older app\n\
+         \x20                              versions, not just this one.\n\
+         - history/events.ndjson         Structured event log for the same set\n\
+         \x20                              of prior sessions as history/app.log.\n\
+         - settings-snapshot.json        A copy of your current settings. Fields\n\
+         \x20                              that look like a credential (password/\n\
+         \x20                              token/secret/API key) are redacted\n\
+         \x20                              before export; as of this version,\n\
+         \x20                              settings only contain hotkey bindings.\n\
+         - metadata.json                 App version, build info, platform/\n\
+         \x20                              architecture, and Tauri/WebView2\n\
+         \x20                              runtime versions for this session.\n\
+         - recent-errors.ndjson          The most recent error-level events —\n\
+         \x20                              this may include prior sessions, not\n\
+         \x20                              just the current one, since older\n\
+         \x20                              failures can still be useful during\n\
+         \x20                              troubleshooting.\n\
+         \n\
+         Diagnostics stay local unless you share this ZIP yourself — nothing\n\
+         here, including history/, is ever sent anywhere automatically.\n\
          \n\
          Sharing this bundle\n\
          --------------------\n\
@@ -347,21 +384,97 @@ fn zip_add(
     zip.write_all(contents).map_err(|e| e.to_string())
 }
 
-fn zip_add_file_or_placeholder(
+fn zip_add_text_or_placeholder(
     zip: &mut zip::ZipWriter<std::fs::File>,
     options: zip::write::SimpleFileOptions,
-    path: &Path,
     name: &str,
+    contents: &str,
+    placeholder: &str,
 ) -> Result<(), String> {
-    match std::fs::read(path) {
-        Ok(bytes) => zip_add(zip, options, name, &bytes),
-        Err(_) => zip_add(
-            zip,
-            options,
-            name,
-            format!("{name} was not found — nothing has been logged to it yet.\n").as_bytes(),
-        ),
+    let bytes = if contents.is_empty() {
+        placeholder.as_bytes()
+    } else {
+        contents.as_bytes()
+    };
+    zip_add(zip, options, name, bytes)
+}
+
+/// Number of prior sessions kept in the diagnostics export's `history/`
+/// files, so a long-lived install's support bundle can't grow unbounded.
+const MAX_HISTORY_SESSIONS: usize = 10;
+
+/// Pulls the session id out of one `events.ndjson` line (its `session_id`
+/// field), or `None` for an unparseable line.
+fn session_id_from_event_line(line: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(line)
+        .ok()?
+        .get("session_id")?
+        .as_str()
+        .map(|s| s.to_string())
+}
+
+/// Pulls the session id out of one `app.log` line. `log_line` always writes
+/// `session={id} ` right after the level tag (see `log_line` above), so the
+/// id is the token between the first `session=` marker and the next space.
+fn session_id_from_log_line(line: &str) -> Option<String> {
+    let marker = "session=";
+    let start = line.find(marker)? + marker.len();
+    let rest = &line[start..];
+    let end = rest.find(' ').unwrap_or(rest.len());
+    if rest[..end].is_empty() {
+        None
+    } else {
+        Some(rest[..end].to_string())
     }
+}
+
+/// Splits `content` into (current-session lines, bounded-history lines)
+/// using `session_id_of` to read each line's session id.
+///
+/// Sessions are single-instance (see `tauri_plugin_single_instance` in
+/// `lib.rs`), so they never interleave within a log file — the order
+/// distinct session ids first appear in is their chronological start order.
+/// History keeps every line for the most recent `max_history_sessions`
+/// non-current sessions (retaining whole session boundaries rather than
+/// truncating arbitrary lines) and drops anything older.
+fn split_current_and_history(
+    content: &str,
+    current_session_id: &str,
+    max_history_sessions: usize,
+    session_id_of: impl Fn(&str) -> Option<String>,
+) -> (String, String) {
+    let lines: Vec<&str> = content.lines().collect();
+
+    let mut seen_order: Vec<String> = Vec::new();
+    for line in &lines {
+        if let Some(sid) = session_id_of(line) {
+            if sid != current_session_id && !seen_order.contains(&sid) {
+                seen_order.push(sid);
+            }
+        }
+    }
+    let retained_start = seen_order.len().saturating_sub(max_history_sessions);
+    let retained: std::collections::HashSet<String> =
+        seen_order[retained_start..].iter().cloned().collect();
+
+    let mut current_lines = String::new();
+    let mut history_lines = String::new();
+    for line in &lines {
+        match session_id_of(line) {
+            Some(sid) if sid == current_session_id => {
+                current_lines.push_str(line);
+                current_lines.push('\n');
+            }
+            Some(sid) if retained.contains(&sid) => {
+                history_lines.push_str(line);
+                history_lines.push('\n');
+            }
+            // Unparseable line, or a session older than the retention
+            // window — dropped from both buckets.
+            _ => {}
+        }
+    }
+    (current_lines, history_lines)
 }
 
 /// Builds the diagnostics ZIP and returns its path. Written to the user's
@@ -378,14 +491,60 @@ pub fn export(app: &AppHandle) -> Result<PathBuf, String> {
         .or_else(|_| app.path().app_data_dir())
         .map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
-    let zip_path = out_dir.join(format!("faustus-friend-diagnostics-{}.zip", now_filename_timestamp()));
+    let zip_path = out_dir.join(format!(
+        "faustus-friend-diagnostics-{}.zip",
+        now_filename_timestamp()
+    ));
 
     let file = std::fs::File::create(&zip_path).map_err(|e| e.to_string())?;
     let mut zip = zip::ZipWriter::new(file);
-    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
 
-    zip_add_file_or_placeholder(&mut zip, options, &state.app_log_path, "app.log")?;
-    zip_add_file_or_placeholder(&mut zip, options, &state.events_path, "events.ndjson")?;
+    let app_log_raw = std::fs::read_to_string(&state.app_log_path).unwrap_or_default();
+    let events_raw = std::fs::read_to_string(&state.events_path).unwrap_or_default();
+
+    let (current_log, history_log) = split_current_and_history(
+        &app_log_raw,
+        &state.session_id,
+        MAX_HISTORY_SESSIONS,
+        session_id_from_log_line,
+    );
+    let (current_events, history_events) = split_current_and_history(
+        &events_raw,
+        &state.session_id,
+        MAX_HISTORY_SESSIONS,
+        session_id_from_event_line,
+    );
+
+    zip_add_text_or_placeholder(
+        &mut zip,
+        options,
+        "current-session/app.log",
+        &current_log,
+        "app.log was not found — nothing has been logged to it yet.\n",
+    )?;
+    zip_add_text_or_placeholder(
+        &mut zip,
+        options,
+        "current-session/events.ndjson",
+        &current_events,
+        "events.ndjson was not found — nothing has been logged to it yet.\n",
+    )?;
+    zip_add_text_or_placeholder(
+        &mut zip,
+        options,
+        "history/app.log",
+        &history_log,
+        "No prior sessions recorded yet.\n",
+    )?;
+    zip_add_text_or_placeholder(
+        &mut zip,
+        options,
+        "history/events.ndjson",
+        &history_events,
+        "No prior sessions recorded yet.\n",
+    )?;
     zip_add(
         &mut zip,
         options,
@@ -398,7 +557,9 @@ pub fn export(app: &AppHandle) -> Result<PathBuf, String> {
         &mut zip,
         options,
         "metadata.json",
-        serde_json::to_string_pretty(&metadata).unwrap_or_default().as_bytes(),
+        serde_json::to_string_pretty(&metadata)
+            .unwrap_or_default()
+            .as_bytes(),
     )?;
     zip_add(
         &mut zip,
@@ -410,12 +571,19 @@ pub fn export(app: &AppHandle) -> Result<PathBuf, String> {
         &mut zip,
         options,
         "README.txt",
-        build_readme(&state.session_id, &metadata.build.app_version).as_bytes(),
+        build_readme(
+            &state.session_id,
+            &metadata.build.app_version,
+            MAX_HISTORY_SESSIONS,
+        )
+        .as_bytes(),
     )?;
 
     zip.finish().map_err(|e| e.to_string())?;
-    drop(state);
 
+    // No need to release `state` before logging: it is a shared `State`
+    // reference that holds no lock, and `log_event` acquires its own state
+    // handle and `write_lock` guard independently, so the two never conflict.
     log_event(
         app,
         "diagnostics_export",
@@ -424,4 +592,234 @@ pub fn export(app: &AppHandle) -> Result<PathBuf, String> {
     );
 
     Ok(zip_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event_line(session_id: &str, event: &str, level: &str, fields: serde_json::Value) -> String {
+        serde_json::to_string(&serde_json::json!({
+            "ts": "2026-01-01T00:00:00Z",
+            "session_id": session_id,
+            "event": event,
+            "level": level,
+            "fields": fields,
+        }))
+        .unwrap()
+    }
+
+    fn log_line_str(session_id: &str, level: &str, message: &str) -> String {
+        format!(
+            "[2026-01-01T00:00:00Z] [{}] session={session_id} {message}",
+            level.to_uppercase()
+        )
+    }
+
+    #[test]
+    fn session_id_from_event_line_parses_field() {
+        let line = event_line("abc-123", "startup", "info", serde_json::json!({}));
+        assert_eq!(
+            session_id_from_event_line(&line),
+            Some("abc-123".to_string())
+        );
+    }
+
+    #[test]
+    fn session_id_from_event_line_none_for_malformed() {
+        assert_eq!(session_id_from_event_line("not json"), None);
+    }
+
+    #[test]
+    fn session_id_from_log_line_parses_token() {
+        let line = log_line_str("abc-123", "info", "Faustus Friend starting");
+        assert_eq!(session_id_from_log_line(&line), Some("abc-123".to_string()));
+    }
+
+    #[test]
+    fn session_id_from_log_line_none_without_marker() {
+        assert_eq!(session_id_from_log_line("no marker here"), None);
+    }
+
+    // Requirement 3: current-session export excludes entries from other session IDs.
+    #[test]
+    fn split_current_session_excludes_other_sessions() {
+        let content = format!(
+            "{}\n{}\n{}\n",
+            event_line("session-old", "startup", "info", serde_json::json!({})),
+            event_line("session-current", "startup", "info", serde_json::json!({})),
+            event_line(
+                "session-current",
+                "hotkey_register",
+                "info",
+                serde_json::json!({})
+            ),
+        );
+
+        let (current, _history) =
+            split_current_and_history(&content, "session-current", 10, session_id_from_event_line);
+
+        assert!(current.contains("session-current"));
+        assert!(!current.contains("session-old"));
+        assert_eq!(current.lines().count(), 2);
+    }
+
+    // Requirement 4: historical export excludes the current session.
+    #[test]
+    fn split_history_excludes_current_session() {
+        let content = format!(
+            "{}\n{}\n",
+            event_line("session-old", "startup", "info", serde_json::json!({})),
+            event_line("session-current", "startup", "info", serde_json::json!({})),
+        );
+
+        let (_current, history) =
+            split_current_and_history(&content, "session-current", 10, session_id_from_event_line);
+
+        assert!(history.contains("session-old"));
+        assert!(!history.contains("session-current"));
+    }
+
+    // Requirement 5: historical export is capped at the configured session limit,
+    // retaining whole session boundaries (the most recent ones) rather than
+    // truncating arbitrary lines.
+    #[test]
+    fn split_history_caps_at_max_sessions_keeping_most_recent() {
+        let mut content = String::new();
+        for i in 0..12 {
+            content.push_str(&event_line(
+                &format!("session-{i}"),
+                "startup",
+                "info",
+                serde_json::json!({}),
+            ));
+            content.push('\n');
+        }
+        content.push_str(&event_line(
+            "session-current",
+            "startup",
+            "info",
+            serde_json::json!({}),
+        ));
+        content.push('\n');
+
+        let (_current, history) =
+            split_current_and_history(&content, "session-current", 10, session_id_from_event_line);
+
+        assert!(!history.contains("\"session_id\":\"session-0\""));
+        assert!(!history.contains("\"session_id\":\"session-1\""));
+        for i in 2..12 {
+            assert!(history.contains(&format!("\"session_id\":\"session-{i}\"")));
+        }
+    }
+
+    #[test]
+    fn split_history_retains_fewer_than_cap_when_fewer_sessions_exist() {
+        let content = format!(
+            "{}\n{}\n",
+            event_line("session-a", "startup", "info", serde_json::json!({})),
+            event_line("session-b", "startup", "info", serde_json::json!({})),
+        );
+
+        let (_current, history) =
+            split_current_and_history(&content, "session-current", 10, session_id_from_event_line);
+
+        assert!(history.contains("session-a"));
+        assert!(history.contains("session-b"));
+    }
+
+    // Requirement 6: older app versions may appear under history/ — there is
+    // no version-based filtering in split_current_and_history.
+    #[test]
+    fn split_history_allows_older_app_versions() {
+        let old_version_line = event_line(
+            "session-old",
+            "startup",
+            "info",
+            serde_json::json!({ "app_version": "0.1.0" }),
+        );
+        let content = format!("{old_version_line}\n");
+
+        let (_current, history) =
+            split_current_and_history(&content, "session-current", 10, session_id_from_event_line);
+
+        assert!(history.contains("0.1.0"));
+    }
+
+    // Requirement 7: error export still includes relevant prior-session errors.
+    #[test]
+    fn extract_recent_errors_includes_prior_session_errors_within_limit() {
+        let dir = std::env::temp_dir().join(format!("faustus-friend-test-{}", random_u64()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let events_path = dir.join("events.ndjson");
+        let content = format!(
+            "{}\n{}\n{}\n",
+            event_line(
+                "session-old",
+                "hotkey_register",
+                "error",
+                serde_json::json!({ "stage": "unregister_all" })
+            ),
+            event_line("session-current", "startup", "info", serde_json::json!({})),
+            event_line(
+                "session-current",
+                "unhandled_error",
+                "error",
+                serde_json::json!({})
+            ),
+        );
+        std::fs::write(&events_path, content).unwrap();
+
+        let result = extract_recent_errors(&events_path, 50);
+
+        assert!(result.contains("session-old"));
+        assert!(result.contains("session-current"));
+        assert!(!result.contains("\"event\":\"startup\""));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn extract_recent_errors_respects_limit() {
+        let dir = std::env::temp_dir().join(format!("faustus-friend-test-{}", random_u64()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let events_path = dir.join("events.ndjson");
+        let mut content = String::new();
+        for i in 0..5 {
+            content.push_str(&event_line(
+                "session-a",
+                "err",
+                "error",
+                serde_json::json!({ "i": i }),
+            ));
+            content.push('\n');
+        }
+        std::fs::write(&events_path, content).unwrap();
+
+        let result = extract_recent_errors(&events_path, 2);
+
+        assert_eq!(result.trim().lines().count(), 2);
+        assert!(result.contains("\"i\":4"));
+        assert!(result.contains("\"i\":3"));
+        assert!(!result.contains("\"i\":0"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // Requirement 8: sensitive settings redaction remains unchanged.
+    #[test]
+    fn redact_sensitive_blanks_credential_shaped_keys_only() {
+        let mut value = serde_json::json!({
+            "hotkeys": { "toggleOverlay": "Ctrl+Shift+Space" },
+            "apiKey": "super-secret",
+            "nested": { "password": "hunter2", "note": "keep me" },
+        });
+
+        redact_sensitive(&mut value);
+
+        assert_eq!(value["hotkeys"]["toggleOverlay"], "Ctrl+Shift+Space");
+        assert_eq!(value["apiKey"], "[redacted]");
+        assert_eq!(value["nested"]["password"], "[redacted]");
+        assert_eq!(value["nested"]["note"], "keep me");
+    }
 }
