@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { formatFormulaValue } from "./formula";
 import {
   GRID_COLS,
   GRID_ROWS,
@@ -235,5 +236,30 @@ describe("summarizeCells", () => {
     const summary = summarizeCells(["1", "=1+", "2"]);
     expect(summary.numbers).toBe(2);
     expect(summary.sum).toBe(3);
+  });
+});
+
+describe("selection summary display formatting", () => {
+  // Regression: Sum/Min/Max were rendered as raw JS numbers, so a selection
+  // like 0.1 + 0.2 surfaced the binary artifact 0.30000000000000004. The
+  // display now routes them through formatFormulaValue — the same formatter
+  // the grid cells themselves use — so the summary and the cells agree.
+  it("formats a sum free of binary floating-point artifacts", () => {
+    const summary = summarizeCells(["0.1", "0.2"]);
+    expect(summary.sum).toBeCloseTo(0.3); // internal value stays numeric
+    expect(formatFormulaValue(summary.sum!)).toBe("0.3");
+  });
+
+  it("formats min and max the same way the cells display them", () => {
+    const summary = summarizeCells(["0.1", "0.2", "0.3"]);
+    expect(formatFormulaValue(summary.min!)).toBe("0.1");
+    expect(formatFormulaValue(summary.max!)).toBe("0.3");
+  });
+
+  it("leaves whole-number aggregates unchanged", () => {
+    const summary = summarizeCells(["1", "2", "3"]);
+    expect(formatFormulaValue(summary.sum!)).toBe("6");
+    expect(formatFormulaValue(summary.min!)).toBe("1");
+    expect(formatFormulaValue(summary.max!)).toBe("3");
   });
 });

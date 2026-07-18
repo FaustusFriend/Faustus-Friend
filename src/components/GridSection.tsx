@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { computeCellDisplay } from "../lib/formula";
+import { computeCellDisplay, formatFormulaValue } from "../lib/formula";
 import {
   GRID_COLS,
   GRID_ROWS,
@@ -406,10 +406,10 @@ export function GridSection() {
             <span>Numbers: {summary.numbers}</span>
             {summary.numbers > 0 && (
               <>
-                <span>Sum: {summary.sum}</span>
+                <span>Sum: {formatFormulaValue(summary.sum!)}</span>
                 <span>Average: {summary.average?.toFixed(2)}</span>
-                <span>Minimum: {summary.min}</span>
-                <span>Maximum: {summary.max}</span>
+                <span>Minimum: {formatFormulaValue(summary.min!)}</span>
+                <span>Maximum: {formatFormulaValue(summary.max!)}</span>
               </>
             )}
           </>

@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   convertCurrency,
+  hasUsableTradeResult,
   optimizeBuyTrade,
   optimizeSellTrade,
   parseDecimal,
   parsePricePerItem,
   quickMultiply,
+  type BuyTradeResult,
+  type SellTradeResult,
 } from "./calculator";
 
 function expectOk<T>(result: { ok: boolean; value?: T; error?: string }): T {
@@ -621,5 +624,36 @@ describe("Task 21B Part 4: formatting invariants", () => {
     expect(expectOk(convertCurrency({ amount: "1000", exchangeRate: "0.01", direction: "chaosToDivine" }))).toMatch(
       NUMERIC_2DP,
     );
+  });
+});
+
+describe("hasUsableTradeResult", () => {
+  it("rejects a null result", () => {
+    expect(hasUsableTradeResult(null)).toBe(false);
+  });
+
+  it("rejects a zero-receive result as unavailable", () => {
+    expect(hasUsableTradeResult({ receive: 0 })).toBe(false);
+  });
+
+  it("accepts a positive-receive result", () => {
+    expect(hasUsableTradeResult({ receive: 5 })).toBe(true);
+  });
+
+  it("treats a sell that yields no currency as unavailable, matching buy", () => {
+    // 1 item at 0.50 each: total value 0.50 floors to 0 currency received.
+    const sell = expectOk<SellTradeResult>(optimizeSellTrade("1", "0.50"));
+    expect(sell.receive).toBe(0);
+    expect(hasUsableTradeResult(sell)).toBe(false);
+
+    // Parity with buying: 1 currency at 2.00/item can't afford a single item.
+    const buy = expectOk<BuyTradeResult>(optimizeBuyTrade("1", "2.00"));
+    expect(buy.receive).toBe(0);
+    expect(hasUsableTradeResult(buy)).toBe(false);
+
+    // A sell that does earn currency is still usable.
+    const okSell = expectOk<SellTradeResult>(optimizeSellTrade("2", "1.00"));
+    expect(okSell.receive).toBeGreaterThan(0);
+    expect(hasUsableTradeResult(okSell)).toBe(true);
   });
 });

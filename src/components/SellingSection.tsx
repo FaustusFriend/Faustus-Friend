@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { optimizeSellTrade, type SellTradeResult } from "../lib/calculator";
+import { hasUsableTradeResult, optimizeSellTrade, type SellTradeResult } from "../lib/calculator";
 import { sanitizeWholeNumberInput } from "../lib/inputSanitize";
 import { selectAllOnFocus } from "../lib/selectAllOnFocus";
 import type { useClipboardQueue } from "../lib/clipboardQueue";
@@ -49,7 +49,7 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
 
-  const hasResult = result !== null;
+  const hasResult = hasUsableTradeResult(result);
 
   async function copySell() {
     if (!result) return;

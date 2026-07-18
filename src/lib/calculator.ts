@@ -221,6 +221,18 @@ export function optimizeSellTrade(
 }
 
 /**
+ * A Buy/Sell trade result is only meaningful to display or copy when it
+ * actually yields currency. A zero `receive` — a budget too small to buy a
+ * single item, or a stock worth less than one whole currency unit to sell —
+ * is an unavailable result: the UI shows the "—" placeholder for it instead
+ * of a copyable 0/0 pair. Shared by BuyingSection and SellingSection so the
+ * two never diverge on what counts as "no usable result".
+ */
+export function hasUsableTradeResult(result: { receive: number } | null): boolean {
+  return result !== null && result.receive > 0;
+}
+
+/**
  * Quick Calc: plain `price * quantity`, exact (BigInt) arithmetic, rounded
  * to 2 decimals. Deliberately has no whole-item flooring, no reciprocal
  * price/quantity behavior, and no connection to the trade-optimization
