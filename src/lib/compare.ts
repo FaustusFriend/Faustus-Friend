@@ -177,6 +177,20 @@ export function trimTrailingZeros(value: string): string {
   return String(parseFloat(value));
 }
 
+/**
+ * Echoes a raw Compare listing input next to its computed chaos-equivalent,
+ * labeled with the unit that matches the active format toggle. In "price"
+ * mode the value is currency-per-item ("0.5 D/item"); in "qty" mode it is
+ * items-per-currency ("30 items/D"). `unit` is the single-letter currency
+ * abbreviation, always uppercase on the Compare tab — "C" for Chaos, "D" for
+ * Divine — so the Chaos and Divine rows read symmetrically. Returns "" for an
+ * empty input.
+ */
+export function listingAnnotation(value: string, format: ListingFormat, unit: "C" | "D"): string {
+  if (value === "") return "";
+  return format === "price" ? `${value} ${unit}/item` : `${value} items/${unit}`;
+}
+
 export interface CompareVerdict {
   title: string;
   subline: string;

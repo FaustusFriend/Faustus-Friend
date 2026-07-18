@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareListings, formatCompareVerdict } from "./compare";
+import { compareListings, formatCompareVerdict, listingAnnotation } from "./compare";
 
 function expectOk<T>(result: { ok: boolean; value?: T; error?: string }): T {
   if (!result.ok) {
@@ -590,5 +590,31 @@ describe("Task 21B Part 4: Compare formatting invariants", () => {
         expect(viaQty.winner).toBe(viaPrice.winner);
       }
     }
+  });
+});
+
+describe("listingAnnotation", () => {
+  // Compare notation is uppercase for both currencies: Chaos "C", Divine "D".
+  it("labels Divine price mode as D/item", () => {
+    expect(listingAnnotation("0.5", "price", "D")).toBe("0.5 D/item");
+  });
+
+  // Regression: qty mode input is items-per-Divine, but an earlier label
+  // suffixed it with a bare " d", reading "(30 d)" as if it were 30 Divines.
+  it("labels Divine qty mode as items/D, not a count of Divines", () => {
+    expect(listingAnnotation("30", "qty", "D")).toBe("30 items/D");
+  });
+
+  it("labels Chaos price mode as C/item", () => {
+    expect(listingAnnotation("42", "price", "C")).toBe("42 C/item");
+  });
+
+  it("labels Chaos qty mode as items/C", () => {
+    expect(listingAnnotation("5", "qty", "C")).toBe("5 items/C");
+  });
+
+  it("returns an empty string for empty input regardless of mode or currency", () => {
+    expect(listingAnnotation("", "price", "C")).toBe("");
+    expect(listingAnnotation("", "qty", "D")).toBe("");
   });
 });

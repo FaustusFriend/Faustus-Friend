@@ -801,12 +801,20 @@ input:focus {
 }
 
 .compare-listing-label {
-  flex: 1;
+  /* Fixed width (not flex: 1) keeps each format-toggle group anchored right
+     next to its "Chaos" / "Divine" header instead of being pushed to the far
+     right, and aligns the two rows' toggle groups at the same x. */
+  flex: none;
+  width: 52px;
 }
 
 .compare-listing-input {
+  /* margin-left: auto sends the input flush to the row's right edge (aligned
+     with the Rate input above), so the slack sits between the toggles and the
+     input rather than squeezing the field. Width matches the Rate input. */
   flex: none;
-  width: 112px;
+  width: 128px;
+  margin-left: auto;
 }
 
 .format-toggle-row {

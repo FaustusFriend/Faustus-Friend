@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { compareListings, formatCompareVerdict, trimTrailingZeros, type CompareMode, type ListingFormat } from "../lib/compare";
+import {
+  compareListings,
+  formatCompareVerdict,
+  listingAnnotation,
+  trimTrailingZeros,
+  type CompareMode,
+  type ListingFormat,
+} from "../lib/compare";
 import { sanitizeDecimalInput } from "../lib/inputSanitize";
 import { selectAllOnFocus } from "../lib/selectAllOnFocus";
 
@@ -44,6 +51,9 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
   const winnerAccentClass =
     result && result.winner !== "tie" ? (mode === "buying" ? "compare-accent-buy" : "compare-accent-sell") : "";
 
+  const chaosAnnotation = listingAnnotation(state.chaos, state.chaosFormat, "C");
+  const divAnnotation = listingAnnotation(state.div, state.divFormat, "D");
+
   let verdictTitle = "Awaiting values";
   let verdictSubline = "";
   if (error) {
@@ -61,7 +71,7 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
         <span className="section-heading-note">enter all three</span>
       </h2>
       <label className="field">
-        <span>Rate (c/div)</span>
+        <span>Rate (C/D)</span>
         <input
           inputMode="decimal"
           value={state.rate}
@@ -78,13 +88,13 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
             className={`format-toggle ${state.chaosFormat === "price" ? "format-toggle-active" : ""}`}
             onClick={() => onChange({ chaosFormat: "price" })}
           >
-            c/item
+            C/item
           </button>
           <button
             className={`format-toggle ${state.chaosFormat === "qty" ? "format-toggle-active" : ""}`}
             onClick={() => onChange({ chaosFormat: "qty" })}
           >
-            #/c
+            #/C
           </button>
         </div>
         <input
@@ -104,7 +114,7 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
             className={`format-toggle ${state.divFormat === "price" ? "format-toggle-active" : ""}`}
             onClick={() => onChange({ divFormat: "price" })}
           >
-            d/item
+            D/item
           </button>
           <button
             className={`format-toggle ${state.divFormat === "qty" ? "format-toggle-active" : ""}`}
@@ -132,7 +142,7 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
       </div>
 
       <div className={`compare-math-row ${result?.winner === "chaos" ? winnerAccentClass : ""}`}>
-        <span className="compare-math-label">Chaos listing</span>
+        <span className="compare-math-label">Chaos {chaosAnnotation ? `(${chaosAnnotation})` : ""}</span>
         {result?.winner === "chaos" && (
           <span className={`compare-winner-chip ${winnerAccentClass}`}>
             {mode === "buying" ? "Best Buy" : "Best Sale"}
@@ -140,11 +150,13 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
         )}
         <span className="compare-math-value">
           {result ? trimTrailingZeros(result.chaosPerItem) : "—"}
-          <span className="compare-math-value-suffix">c</span>
+          <span className="compare-math-value-suffix">C</span>
         </span>
       </div>
       <div className={`compare-math-row ${result?.winner === "divine" ? winnerAccentClass : ""}`}>
-        <span className="compare-math-label">Divine {state.div ? `(${state.div} d)` : ""}</span>
+        <span className="compare-math-label">
+          Divine {divAnnotation ? `(${divAnnotation})` : ""}
+        </span>
         {result?.winner === "divine" && (
           <span className={`compare-winner-chip ${winnerAccentClass}`}>
             {mode === "buying" ? "Best Buy" : "Best Sale"}
@@ -152,7 +164,7 @@ function CompareForm({ mode, state, onChange }: CompareFormProps) {
         )}
         <span className="compare-math-value">
           {result ? trimTrailingZeros(result.divChaosPerItem) : "—"}
-          <span className="compare-math-value-suffix">c</span>
+          <span className="compare-math-value-suffix">C</span>
         </span>
       </div>
     </div>
