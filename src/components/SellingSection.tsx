@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { hasUsableTradeResult, optimizeSellTrade, type SellTradeResult } from "../lib/calculator";
+import {
+  hasUsableTradeResult,
+  optimizeSellTrade,
+  type ExactExchangeRate,
+  type SellTradeResult,
+} from "../lib/calculator";
 import { sanitizeWholeNumberInput } from "../lib/inputSanitize";
 import { selectAllOnFocus } from "../lib/selectAllOnFocus";
 import type { useClipboardQueue } from "../lib/clipboardQueue";
@@ -13,19 +18,19 @@ interface SellingSectionProps {
 
 export function SellingSection({ clipboardQueue }: SellingSectionProps) {
   const [itemsToSell, setItemsToSell] = useState("");
-  const [pricePerItem, setPricePerItem] = useState<string | null>(null);
+  const [rate, setRate] = useState<ExactExchangeRate | null>(null);
   const [result, setResult] = useState<SellTradeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyFailed, setCopyFailed] = useState(false);
   const armedPairRef = useRef<{ sell: number; receive: number } | null>(null);
 
   useEffect(() => {
-    if (itemsToSell === "" || pricePerItem === null) {
+    if (itemsToSell === "" || rate === null) {
       setResult(null);
       setError(null);
       return;
     }
-    const outcome = optimizeSellTrade(itemsToSell, pricePerItem);
+    const outcome = optimizeSellTrade(itemsToSell, rate);
     if (outcome.ok) {
       setResult(outcome.value);
       setError(null);
@@ -33,7 +38,7 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
       setResult(null);
       setError(outcome.error);
     }
-  }, [itemsToSell, pricePerItem]);
+  }, [itemsToSell, rate]);
 
   useEffect(() => {
     const armed = clipboardQueue.status.armedForSection === SECTION_ID;
@@ -87,7 +92,7 @@ export function SellingSection({ clipboardQueue }: SellingSectionProps) {
         />
       </label>
 
-      <ExchangeRateInput onPriceChange={setPricePerItem} />
+      <ExchangeRateInput onRateChange={setRate} />
 
       {error && <p className="error">{error}</p>}
 

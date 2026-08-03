@@ -119,104 +119,157 @@ export function parsePricePerItem(input: string | number): CalcResult<bigint> {
   return ok(cents);
 }
 
-export interface BuyTradeResult {
-  /** Whole-number currency amount actually spent (never exceeds the budget). */
-  spend: number;
-  /** Whole-number item quantity received (maximized). */
-  receive: number;
-  /** Realized price per item (spend / receive), rounded to 2 decimals. */
-  approxRate: string;
+// --- Exact rational exchange rates -----------------------------------------
+
+/**
+ * An exchange rate exactly as the user entered it: the original decimal
+ * string plus the direction it was typed in. It is never pre-converted into
+ * a rounded price-per-item — the engine reduces it to an exact ratio itself,
+ * so a repeating reciprocal (1/13.95, 1/1.53, …) is never lost.
+ */
+export type ExactExchangeRate =
+  | { mode: "currencyPerItem"; value: string }
+  | { mode: "itemsPerCurrency"; value: string };
+
+/**
+ * A rate reduced to its lowest-terms integer trade unit: `currencyAmount`
+ * currency changes hands for exactly `itemAmount` items. Both are positive
+ * and coprime. Every valid trade is a whole-number multiple of this unit,
+ * which is what keeps the realized rate exactly faithful to the entered one.
+ */
+export interface TradeRatio {
+  currencyAmount: bigint;
+  itemAmount: bigint;
+}
+
+/** Greatest common divisor of two BigInts (Euclid), always returned positive. */
+function gcdBigInt(a: bigint, b: bigint): bigint {
+  let x = a < 0n ? -a : a;
+  let y = b < 0n ? -b : b;
+  while (y !== 0n) {
+    [x, y] = [y, x % y];
+  }
+  return x;
 }
 
 /**
- * Given a currency budget and a price per item, returns the maximum whole
- * number of items purchasable without exceeding the budget, along with the
- * matching whole-number spend.
+ * Parses an {@link ExactExchangeRate} into a reduced {@link TradeRatio}.
+ *
+ * The decimal string is read straight into an exact numerator/denominator
+ * pair — `"7.25"` becomes 725/100, reduced to 29/4 — using only BigInt
+ * arithmetic. No Number, parseFloat, floating-point multiplication, or
+ * rounded reciprocal is ever involved, so the ratio is exactly what the user
+ * typed. The direction decides which side each part lands on: a
+ * currency-per-item rate of a/b is `a` currency for `b` items; an
+ * items-per-currency rate of a/b is its reciprocal, `b` currency for `a`
+ * items.
+ */
+export function parseExactRate(rate: ExactExchangeRate): CalcResult<TradeRatio> {
+  const fieldName = rate.mode === "currencyPerItem" ? "Price per item" : "Items per currency";
+  const parsed = parseDecimal(rate.value, fieldName);
+  if (!parsed.ok) return parsed;
+
+  const numerator = parsed.value.scaled;
+  if (numerator <= 0n) {
+    return fail(`${fieldName} must be greater than zero.`);
+  }
+  const denominator = 10n ** BigInt(parsed.value.decimals);
+
+  const divisor = gcdBigInt(numerator, denominator);
+  const reducedNum = numerator / divisor;
+  const reducedDen = denominator / divisor;
+
+  return rate.mode === "currencyPerItem"
+    ? ok({ currencyAmount: reducedNum, itemAmount: reducedDen })
+    : ok({ currencyAmount: reducedDen, itemAmount: reducedNum });
+}
+
+export interface BuyTradeResult {
+  /** Whole-number currency spent — a whole multiple of the unit's currency side, never over budget. */
+  spend: number;
+  /** Whole-number items received — the matching multiple of the unit's item side. */
+  receive: number;
+  /** Budget left over after `spend` (too little for another whole trade unit). */
+  remainingCurrency: number;
+}
+
+/**
+ * Buys the largest whole number of exact trade units that fits the budget.
+ *
+ * With a reduced unit of `C` currency for `I` items and a budget `B`, the
+ * result is `batchCount = floor(B / C)` units: `spend = batchCount · C`,
+ * `receive = batchCount · I`. Because both sides scale by the same whole
+ * `batchCount`, `spend · I === receive · C` always holds — the realized rate
+ * is exactly the entered rate, never an approximation of it.
  */
 export function optimizeBuyTrade(
   currencyToSpend: string | number,
-  pricePerItem: string | number,
+  rate: ExactExchangeRate,
 ): CalcResult<BuyTradeResult> {
   const budgetResult = parseWholeNumber(currencyToSpend, "Currency to spend");
   if (!budgetResult.ok) return budgetResult;
 
-  const priceResult = parsePricePerItem(pricePerItem);
-  if (!priceResult.ok) return priceResult;
+  const ratioResult = parseExactRate(rate);
+  if (!ratioResult.ok) return ratioResult;
 
   const budget = budgetResult.value;
-  const priceCents = priceResult.value;
+  const { currencyAmount, itemAmount } = ratioResult.value;
 
-  const budgetCents = budget * 100n;
-  const receive = budgetCents / priceCents; // floor division, both positive
-
-  if (receive === 0n) {
-    return ok({ spend: 0, receive: 0, approxRate: "0.00" });
-  }
-
-  const spendCents = receive * priceCents;
-  const spend = spendCents / 100n; // floor to a whole currency amount
+  const batchCount = budget / currencyAmount; // floor, both positive
+  const spend = batchCount * currencyAmount;
+  const receive = batchCount * itemAmount;
 
   return ok({
     spend: Number(spend),
     receive: Number(receive),
-    approxRate: formatFraction(spendCents, receive * 100n),
+    remainingCurrency: Number(budget - spend),
   });
 }
 
 export interface SellTradeResult {
-  /**
-   * Whole-number item quantity actually sold. Never exceeds `itemsToSell` —
-   * see {@link remainder}.
-   */
+  /** Whole-number items sold — a whole multiple of the unit's item side, never over stock. */
   sell: number;
   /**
-   * Items left over from `itemsToSell` after selling `sell` — i.e. items
-   * that would floor away for zero currency if handed over anyway. Always
-   * `itemsToSell - sell`; 0 when the full stock is sellable.
+   * Items left over from the stock after `sell` — too few to make up another
+   * whole trade unit. Always `itemsToSell - sell`; 0 when the stock divides
+   * evenly into whole units.
    */
   remainder: number;
-  /** Whole-number currency amount received (maximized). */
+  /** Whole-number currency received — the matching multiple of the unit's currency side. */
   receive: number;
-  /** Realized price per item (receive / sell), rounded to 2 decimals. */
-  approxRate: string;
 }
 
 /**
- * Given a whole number of items to sell and a price per item, returns the
- * currency received and the quantity actually needed to earn it.
+ * Sells the largest whole number of exact trade units the stock allows.
  *
- * `receive` is the floor of the full stock's total value — selling *more*
- * than necessary to reach that floored amount would hand over items for
- * nothing, since their value falls entirely inside the rounding loss. `sell`
- * is therefore the minimum whole-item quantity whose value covers `receive`
- * exactly (a ceiling division): any fewer items would fall short of it, and
- * any more would exceed it without earning anything extra. Items beyond
- * that are reported as `remainder` rather than included in `sell`.
+ * With a reduced unit of `C` currency for `I` items and a stock `S`, the
+ * result is `batchCount = floor(S / I)` units: `sell = batchCount · I`,
+ * `receive = batchCount · C`, and `remainder = S − sell` items that don't
+ * make up another whole unit. Both sides scale by the same whole
+ * `batchCount`, so `sell · C === receive · I` always holds — no item is ever
+ * handed over at anything other than the exact entered rate.
  */
 export function optimizeSellTrade(
   itemsToSell: string | number,
-  pricePerItem: string | number,
+  rate: ExactExchangeRate,
 ): CalcResult<SellTradeResult> {
   const itemsResult = parseWholeNumber(itemsToSell, "Items to sell");
   if (!itemsResult.ok) return itemsResult;
 
-  const priceResult = parsePricePerItem(pricePerItem);
-  if (!priceResult.ok) return priceResult;
+  const ratioResult = parseExactRate(rate);
+  if (!ratioResult.ok) return ratioResult;
 
-  const items = itemsResult.value;
-  const priceCents = priceResult.value;
+  const stock = itemsResult.value;
+  const { currencyAmount, itemAmount } = ratioResult.value;
 
-  const totalCents = items * priceCents; // exact, no rounding needed here
-  const receive = totalCents / 100n; // floor to a whole currency amount
-
-  const sell = receive === 0n ? 0n : (receive * 100n + priceCents - 1n) / priceCents; // ceil
-  const remainder = items - sell;
+  const batchCount = stock / itemAmount; // floor, both positive
+  const sell = batchCount * itemAmount;
+  const receive = batchCount * currencyAmount;
 
   return ok({
     sell: Number(sell),
-    remainder: Number(remainder),
+    remainder: Number(stock - sell),
     receive: Number(receive),
-    approxRate: receive === 0n ? "0.00" : formatFraction(receive * 100n, sell * 100n),
   });
 }
 

@@ -5,9 +5,11 @@ import {
   optimizeBuyTrade,
   optimizeSellTrade,
   parseDecimal,
+  parseExactRate,
   parsePricePerItem,
   quickMultiply,
   type BuyTradeResult,
+  type ExactExchangeRate,
   type SellTradeResult,
 } from "./calculator";
 
@@ -18,70 +20,49 @@ function expectOk<T>(result: { ok: boolean; value?: T; error?: string }): T {
   return result.value as T;
 }
 
-// --- Task 21B: independent reference oracle -------------------------------
+// A currency-per-item rate exactly as the user typed it in the Price / Item
+// field, and an items-per-currency rate typed in the Items / Currency field.
+const cpi = (value: string): ExactExchangeRate => ({ mode: "currencyPerItem", value });
+const ipc = (value: string): ExactExchangeRate => ({ mode: "itemsPerCurrency", value });
+
+// --- Independent reference oracle (BigInt/string only) ---------------------
 // Cross-checks optimizeBuyTrade/optimizeSellTrade against a second,
-// independently written implementation of the same spec. Deliberately
-// re-parses decimal strings by hand instead of calling parseDecimal /
-// parsePricePerItem, so a shared parsing bug can't hide identically in both
-// the code under test and its oracle. Only BigInt and string arithmetic are
-// used — never Number, parseFloat, or toFixed — so nothing here can
-// introduce the kind of imprecision this suite is trying to rule out.
+// independently written implementation of the exact-ratio spec. Never uses
+// Number, parseFloat, or toFixed in any expected-value computation, so nothing
+// here can reintroduce the imprecision the suite exists to rule out.
 
-/** Parses a plain "123", "1.6", "1.60", or ".5" style string into integer
- * cents, via string splitting only (no shared code with calculator.ts). */
-function centsFromDecimalStr(value: string): bigint {
-  const [whole, frac = ""] = value.split(".");
-  const paddedFrac = (frac + "00").slice(0, 2);
-  return BigInt((whole || "0") + paddedFrac);
-}
-
-function centsToPriceStr(cents: bigint): string {
-  const whole = cents / 100n;
-  const frac = cents % 100n;
-  return `${whole}.${frac.toString().padStart(2, "0")}`;
-}
-
-/** Exact price-per-item <-> items-per-currency pairs — 10000n divides evenly
- * by every one of these, so converting between the two forms needs no
- * rounding at all, keeping this table itself exact. */
-const EXACT_RECIPROCALS: ReadonlyArray<{ price: string; itemsPerCurrency: bigint }> = [
-  { price: "0.5", itemsPerCurrency: 2n },
-  { price: "0.25", itemsPerCurrency: 4n },
-  { price: "0.2", itemsPerCurrency: 5n },
-  { price: "0.1", itemsPerCurrency: 10n },
-  { price: "0.05", itemsPerCurrency: 20n },
-  { price: "0.04", itemsPerCurrency: 25n },
-  { price: "0.02", itemsPerCurrency: 50n },
-  { price: "0.01", itemsPerCurrency: 100n },
-];
-
-/** Re-derives price-per-item cents from items-per-currency (a plain integer
- * count, not itself cents-scaled) using only exact BigInt division — throws
- * rather than silently rounding if the pair given doesn't divide evenly,
- * since this oracle must never approximate. */
-function priceCentsFromItemsPerCurrency(itemsPerCurrency: bigint): bigint {
-  if (100n % itemsPerCurrency !== 0n) {
-    throw new Error(`${itemsPerCurrency} does not divide 100 evenly — not a valid exact-reciprocal fixture`);
+function gcd(a: bigint, b: bigint): bigint {
+  let x = a < 0n ? -a : a;
+  let y = b < 0n ? -b : b;
+  while (y !== 0n) {
+    [x, y] = [y, x % y];
   }
-  return 100n / itemsPerCurrency;
+  return x;
 }
 
-function expectedBuy(budget: number, priceStr: string): { spend: number; receive: number } {
-  const priceCents = centsFromDecimalStr(priceStr);
-  const budgetCents = BigInt(budget) * 100n;
-  const receive = budgetCents / priceCents; // floor
-  const spend = (receive * priceCents) / 100n; // floor
-  return { spend: Number(spend), receive: Number(receive) };
+/** Reduces a plain decimal string, read as a currency-per-item price, into an
+ * exact lowest-terms trade unit of C currency for I items — by string
+ * splitting only, sharing no code with calculator.ts. */
+function reducedUnitFromPrice(priceStr: string): { C: bigint; I: bigint } {
+  const [whole, frac = ""] = priceStr.split(".");
+  const numerator = BigInt((whole || "0") + frac);
+  const denominator = 10n ** BigInt(frac.length);
+  const g = gcd(numerator, denominator);
+  return { C: numerator / g, I: denominator / g };
+}
+
+function expectedBuy(budget: number, priceStr: string): { spend: number; receive: number; remainingCurrency: number } {
+  const { C, I } = reducedUnitFromPrice(priceStr);
+  const batches = BigInt(budget) / C; // floor
+  const spend = batches * C;
+  return { spend: Number(spend), receive: Number(batches * I), remainingCurrency: Number(BigInt(budget) - spend) };
 }
 
 function expectedSell(stock: number, priceStr: string): { sell: number; remainder: number; receive: number } {
-  const priceCents = centsFromDecimalStr(priceStr);
-  const items = BigInt(stock);
-  const totalCents = items * priceCents; // exact
-  const receive = totalCents / 100n; // floor
-  const sell = receive === 0n ? 0n : (receive * 100n + priceCents - 1n) / priceCents; // ceil
-  const remainder = items - sell;
-  return { sell: Number(sell), remainder: Number(remainder), receive: Number(receive) };
+  const { C, I } = reducedUnitFromPrice(priceStr);
+  const batches = BigInt(stock) / I; // floor
+  const sell = batches * I;
+  return { sell: Number(sell), remainder: Number(BigInt(stock) - sell), receive: Number(batches * C) };
 }
 
 describe("parsePricePerItem", () => {
@@ -125,8 +106,6 @@ describe("parsePricePerItem", () => {
     expect(result.ok).toBe(false);
   });
 
-  // Task 21: manually entered prices below 1 must parse the same as their
-  // computed reciprocals, whether typed with or without the leading zero.
   it.each([
     ["0.5", 50n],
     [".5", 50n],
@@ -173,210 +152,266 @@ describe("parseDecimal — leading-decimal notation", () => {
   });
 });
 
+// --- fix/exact-trade-ratios: exact decimal parsing + reduction -------------
+
+describe("parseExactRate — exact decimal parsing and reduction", () => {
+  it.each([
+    ["7.25", 29n, 4n],
+    ["7.1", 71n, 10n],
+    ["7.2500", 29n, 4n], // trailing zeros reduce to the same unit
+    [".5", 1n, 2n], // leading-decimal notation
+    ["13.95", 1395n, 100n], // pre-reduction numerator/denominator...
+  ])("currencyPerItem %s reduces to a lowest-terms currency:item unit", (value, _n, _d) => {
+    const { currencyAmount, itemAmount } = expectOk(parseExactRate(cpi(value)));
+    // The reduced pair is always coprime.
+    expect(gcd(currencyAmount, itemAmount)).toBe(1n);
+    // And exactly equals value as a fraction: currencyAmount/itemAmount === value.
+    const { C, I } = reducedUnitFromPrice(value);
+    expect(currencyAmount).toBe(C);
+    expect(itemAmount).toBe(I);
+  });
+
+  it("currencyPerItem 7.25 -> 29 currency / 4 items", () => {
+    expect(expectOk(parseExactRate(cpi("7.25")))).toEqual({ currencyAmount: 29n, itemAmount: 4n });
+  });
+
+  it("currencyPerItem 7.1 -> 71 currency / 10 items", () => {
+    expect(expectOk(parseExactRate(cpi("7.1")))).toEqual({ currencyAmount: 71n, itemAmount: 10n });
+  });
+
+  it("currencyPerItem 7.2500 (trailing zeros) -> 29 currency / 4 items", () => {
+    expect(expectOk(parseExactRate(cpi("7.2500")))).toEqual({ currencyAmount: 29n, itemAmount: 4n });
+  });
+
+  it("itemsPerCurrency 13.95 -> 20 currency / 279 items (279/20 reciprocal)", () => {
+    expect(expectOk(parseExactRate(ipc("13.95")))).toEqual({ currencyAmount: 20n, itemAmount: 279n });
+  });
+
+  it("itemsPerCurrency 1.53 -> 100 currency / 153 items", () => {
+    expect(expectOk(parseExactRate(ipc("1.53")))).toEqual({ currencyAmount: 100n, itemAmount: 153n });
+  });
+
+  it("itemsPerCurrency 1.6 -> 5 currency / 8 items (8/5 reciprocal)", () => {
+    expect(expectOk(parseExactRate(ipc("1.6")))).toEqual({ currencyAmount: 5n, itemAmount: 8n });
+  });
+
+  it("leading-decimal .5 as currencyPerItem -> 1 currency / 2 items", () => {
+    expect(expectOk(parseExactRate(cpi(".5")))).toEqual({ currencyAmount: 1n, itemAmount: 2n });
+  });
+
+  it("a currencyPerItem rate and its items-per-currency reciprocal reduce to swapped units", () => {
+    const price = expectOk(parseExactRate(cpi("7.25"))); // 29 / 4
+    const recip = expectOk(parseExactRate(ipc("7.25"))); // as items-per-currency
+    expect(recip.currencyAmount).toBe(price.itemAmount);
+    expect(recip.itemAmount).toBe(price.currencyAmount);
+  });
+
+  it("parses a high-precision decimal exactly, without rounding", () => {
+    // 123456.789 = 123456789/1000; 123456789 is coprime with 1000.
+    expect(expectOk(parseExactRate(cpi("123456.789")))).toEqual({
+      currencyAmount: 123456789n,
+      itemAmount: 1000n,
+    });
+  });
+
+  it.each(["0", "0.00", ".0"])("rejects a zero rate (%s)", (value) => {
+    expect(parseExactRate(cpi(value)).ok).toBe(false);
+    expect(parseExactRate(ipc(value)).ok).toBe(false);
+  });
+
+  it.each(["-1", "-1.50"])("rejects a negative rate (%s)", (value) => {
+    expect(parseExactRate(cpi(value)).ok).toBe(false);
+  });
+
+  it.each(["", "abc", ".", "5.", "1.2.3"])("rejects malformed input (%s)", (value) => {
+    expect(parseExactRate(cpi(value)).ok).toBe(false);
+    expect(parseExactRate(ipc(value)).ok).toBe(false);
+  });
+});
+
 describe("optimizeBuyTrade", () => {
-  it("matches the spec example: budget 100, price 1.60 => spend 99, receive 62", () => {
-    const result = expectOk(optimizeBuyTrade(100, "1.60"));
-    expect(result.spend).toBe(99);
-    expect(result.receive).toBe(62);
-    expect(result.approxRate).toBe("1.60");
+  it("takes the largest whole multiple of the exact unit: budget 100 at 1.60 (8/5)", () => {
+    // 1.60 = 8/5 -> 8 currency for 5 items; floor(100/8) = 12 batches.
+    const result = expectOk(optimizeBuyTrade(100, cpi("1.60")));
+    expect(result.spend).toBe(96);
+    expect(result.receive).toBe(60);
+    expect(result.remainingCurrency).toBe(4);
   });
 
   it("uses the full budget exactly when it divides evenly", () => {
-    const result = expectOk(optimizeBuyTrade(100, "2.00"));
+    const result = expectOk(optimizeBuyTrade(100, cpi("2.00")));
     expect(result.spend).toBe(100);
     expect(result.receive).toBe(50);
-    expect(result.approxRate).toBe("2.00");
+    expect(result.remainingCurrency).toBe(0);
   });
 
-  it("cannot fully use the budget when price doesn't divide evenly", () => {
-    const result = expectOk(optimizeBuyTrade(10, "3.00"));
+  it("cannot fully use the budget when the unit doesn't divide it evenly", () => {
+    const result = expectOk(optimizeBuyTrade(10, cpi("3.00")));
     expect(result.spend).toBe(9);
     expect(result.receive).toBe(3);
     expect(result.spend).toBeLessThan(10);
   });
 
-  it("returns zero when the budget is smaller than one item", () => {
-    const result = expectOk(optimizeBuyTrade(1, "5.00"));
+  it("returns zero when the budget is smaller than one trade unit", () => {
+    const result = expectOk(optimizeBuyTrade(1, cpi("5.00")));
     expect(result.spend).toBe(0);
     expect(result.receive).toBe(0);
+    expect(result.remainingCurrency).toBe(1);
   });
 
   it("never returns a spend greater than the budget", () => {
-    const result = expectOk(optimizeBuyTrade(7, "1.10"));
+    const result = expectOk(optimizeBuyTrade(7, cpi("1.10")));
     expect(result.spend).toBeLessThanOrEqual(7);
   });
 
   it("proves the algorithm finds the maximum valid trade, not merely the first valid one", () => {
-    // A brute-force search over every possible receive quantity should never
-    // find a larger valid receive than the optimizer returns.
+    // 2.35 = 47/20 -> 47 currency for 20 items. A brute-force search over
+    // batch counts should never beat the optimizer's spend.
     const budget = 137;
-    const price = "2.35"; // 235 cents
-    const result = expectOk(optimizeBuyTrade(budget, price));
+    const result = expectOk(optimizeBuyTrade(budget, cpi("2.35")));
 
-    const priceCents = 235n;
-    const budgetCents = BigInt(budget) * 100n;
-    let bestBruteForceReceive = 0n;
-    for (let receive = 0n; receive <= 100n; receive++) {
-      const cost = receive * priceCents;
-      if (cost <= budgetCents && receive > bestBruteForceReceive) {
-        bestBruteForceReceive = receive;
+    const C = 47n;
+    let bestBatches = 0n;
+    for (let batches = 0n; batches <= 100n; batches++) {
+      if (batches * C <= BigInt(budget) && batches > bestBatches) {
+        bestBatches = batches;
       }
     }
-
-    expect(BigInt(result.receive)).toBe(bestBruteForceReceive);
-    expect(bestBruteForceReceive).toBeGreaterThan(0n);
+    expect(BigInt(result.spend)).toBe(bestBatches * C);
+    expect(bestBatches).toBeGreaterThan(0n);
   });
 
-  it("rejects a budget with more than 2 decimal places passed through price validation", () => {
-    const result = optimizeBuyTrade(100, "1.999");
-    expect(result.ok).toBe(false);
+  it("accepts a higher-precision exact price (no 2-decimal cap in the calc path)", () => {
+    // 1.999 = 1999/1000. Budget 4000 -> floor(4000/1999) = 2 batches.
+    const result = expectOk(optimizeBuyTrade(4000, cpi("1.999")));
+    expect(result.spend).toBe(3998);
+    expect(result.receive).toBe(2000);
+    // Exact ratio invariant holds: spend * I === receive * C.
+    expect(3998n * 1000n).toBe(2000n * 1999n);
   });
 
   it("rejects a non-whole-number budget", () => {
-    const result = optimizeBuyTrade("10.5", "1.00");
+    const result = optimizeBuyTrade("10.5", cpi("1.00"));
     expect(result.ok).toBe(false);
   });
 
   it("rejects a zero budget", () => {
-    const result = optimizeBuyTrade(0, "1.00");
+    const result = optimizeBuyTrade(0, cpi("1.00"));
     expect(result.ok).toBe(false);
   });
 
   it("rejects a blank budget", () => {
-    const result = optimizeBuyTrade("", "1.00");
+    const result = optimizeBuyTrade("", cpi("1.00"));
     expect(result.ok).toBe(false);
   });
 
-  // Task 21 regression: budget 10, price 0.5/item => 20 items for 10 spent.
-  it("Task 21: buying with a manually entered sub-1 price (0.5)", () => {
-    const result = expectOk(optimizeBuyTrade(10, "0.5"));
+  it("rejects a zero rate", () => {
+    expect(optimizeBuyTrade(100, cpi("0")).ok).toBe(false);
+  });
+
+  it("buying with a sub-1 price (0.5) yields 20 items for 10 spent", () => {
+    const result = expectOk(optimizeBuyTrade(10, cpi("0.5")));
     expect(result.spend).toBe(10);
     expect(result.receive).toBe(20);
   });
 
-  it("Task 21: buying with leading-decimal notation (.5) matches leading-zero (0.5)", () => {
-    const dotForm = expectOk(optimizeBuyTrade(10, ".5"));
-    const zeroForm = expectOk(optimizeBuyTrade(10, "0.5"));
+  it("leading-decimal notation (.5) matches leading-zero (0.5)", () => {
+    const dotForm = expectOk(optimizeBuyTrade(10, cpi(".5")));
+    const zeroForm = expectOk(optimizeBuyTrade(10, cpi("0.5")));
     expect(dotForm).toEqual(zeroForm);
   });
 
-  // Task 21B Part 1: the previous version of this test derived the
-  // reciprocal price with `(1 / Number(itemsPerCurrency)).toFixed(2)` —
-  // floating-point division establishing a "mathematical truth" the test
-  // then checked itself against. Replaced with the exact reciprocal table
-  // and a BigInt-only re-derivation (see EXACT_RECIPROCALS /
-  // priceCentsFromItemsPerCurrency above), so no float ever enters the
-  // expected-value computation.
-  it.each(EXACT_RECIPROCALS)(
-    "Task 21: price $price matches its reciprocal of $itemsPerCurrency items-per-currency",
-    ({ price, itemsPerCurrency }) => {
-      // Sanity: the fixture table is internally consistent — compare by cents
-      // value, not by string, since "0.5" and "0.50" are equal prices with
-      // different (both valid) decimal-place formatting.
-      expect(priceCentsFromItemsPerCurrency(itemsPerCurrency)).toBe(centsFromDecimalStr(price));
-
-      const derivedPrice = centsToPriceStr(priceCentsFromItemsPerCurrency(itemsPerCurrency));
-      const viaPrice = expectOk(optimizeBuyTrade(10, price));
-      const viaReciprocal = expectOk(optimizeBuyTrade(10, derivedPrice));
-      expect(viaPrice).toEqual(viaReciprocal);
-    },
-  );
+  it("a currencyPerItem rate matches its items-per-currency reciprocal entry", () => {
+    // 0.5 currency/item is the same rate as 2 items/currency.
+    const viaPrice = expectOk(optimizeBuyTrade(21, cpi("0.5")));
+    const viaReciprocal = expectOk(optimizeBuyTrade(21, ipc("2")));
+    expect(viaPrice).toEqual(viaReciprocal);
+  });
 });
 
 describe("optimizeSellTrade", () => {
-  it("sells all items and floors the currency received", () => {
-    const result = expectOk(optimizeSellTrade(62, "1.60"));
-    expect(result.sell).toBe(62);
-    expect(result.remainder).toBe(0);
-    expect(result.receive).toBe(99);
-    expect(result.approxRate).toBe("1.60");
+  it("takes the largest whole multiple of the exact unit: stock 62 at 1.60 (8/5)", () => {
+    // 1.60 = 8/5 -> 8 currency for 5 items; floor(62/5) = 12 batches.
+    const result = expectOk(optimizeSellTrade(62, cpi("1.60")));
+    expect(result.sell).toBe(60);
+    expect(result.receive).toBe(96);
+    expect(result.remainder).toBe(2);
   });
 
-  it("uses the full item count exactly when value divides evenly", () => {
-    const result = expectOk(optimizeSellTrade(50, "2.00"));
+  it("uses the full item count exactly when it divides into whole units", () => {
+    const result = expectOk(optimizeSellTrade(50, cpi("2.00")));
     expect(result.sell).toBe(50);
     expect(result.remainder).toBe(0);
     expect(result.receive).toBe(100);
   });
 
-  it("Task 20 Bug 1: excludes items that would floor away for zero currency from the sell quantity", () => {
-    // Stock 108 at a rate of 5 items per currency (price per item = 1/5 =
-    // 0.20). Only 105 items (21 full lots of 5) are needed to earn the 21
-    // currency received — the other 3 would be handed over for nothing.
-    const result = expectOk(optimizeSellTrade(108, "0.20"));
+  it("excludes items that can't form another whole unit from the sell quantity", () => {
+    // 0.20 = 1/5 -> 1 currency for 5 items. Stock 108 -> 21 whole units = 105
+    // items for 21 currency; the other 3 can't make a unit.
+    const result = expectOk(optimizeSellTrade(108, cpi("0.20")));
     expect(result.sell).toBe(105);
     expect(result.receive).toBe(21);
     expect(result.remainder).toBe(3);
   });
 
-  it("reports zero sell quantity (not the full stock) when the total value floors to zero currency", () => {
-    // Task 20 Bug 1 follow-through: if even the full stock's value floors
-    // to 0 currency, selling any of it earns nothing, so none of it should
-    // be reported as sellable — the previous behavior recommended selling
-    // all 3 items away for 0 currency in return.
-    const result = expectOk(optimizeSellTrade(3, "0.33"));
+  it("reports zero sell quantity when the stock is smaller than one trade unit", () => {
+    // 0.33 = 33/100 -> 33 currency for 100 items. Stock 3 -> no whole unit.
+    const result = expectOk(optimizeSellTrade(3, cpi("0.33")));
     expect(result.sell).toBe(0);
     expect(result.remainder).toBe(3);
-    expect(result.receive).toBe(0); // 0.99 total, floored to 0 whole currency
+    expect(result.receive).toBe(0);
   });
 
-  it("proves selling fewer items never yields more currency than selling all of them", () => {
-    const items = 41;
-    const price = "1.75"; // 175 cents
-    const result = expectOk(optimizeSellTrade(items, price));
-
-    const priceCents = 175n;
-    let bestBruteForceReceive = -1n;
-    for (let sell = 0n; sell <= BigInt(items); sell++) {
-      const receive = (sell * priceCents) / 100n;
-      if (receive > bestBruteForceReceive) {
-        bestBruteForceReceive = receive;
-      }
-    }
-
-    expect(result.sell).toBe(items);
-    expect(result.remainder).toBe(0);
-    expect(BigInt(result.receive)).toBe(bestBruteForceReceive);
+  it("proves selling never spans a partial unit: stock 41 at 1.75 (7/4)", () => {
+    // 1.75 = 7/4 -> 7 currency for 4 items; floor(41/4) = 10 batches.
+    const result = expectOk(optimizeSellTrade(41, cpi("1.75")));
+    expect(result.sell).toBe(40);
+    expect(result.receive).toBe(70);
+    expect(result.remainder).toBe(1);
+    // Exact ratio invariant: sell * C === receive * I.
+    expect(40n * 7n).toBe(70n * 4n);
   });
 
   it("rejects a non-whole-number item count", () => {
-    const result = optimizeSellTrade("10.5", "1.00");
+    const result = optimizeSellTrade("10.5", cpi("1.00"));
     expect(result.ok).toBe(false);
   });
 
   it("rejects a zero item count", () => {
-    const result = optimizeSellTrade(0, "1.00");
+    const result = optimizeSellTrade(0, cpi("1.00"));
     expect(result.ok).toBe(false);
   });
 
   it("rejects a blank item count", () => {
-    const result = optimizeSellTrade("", "1.00");
+    const result = optimizeSellTrade("", cpi("1.00"));
     expect(result.ok).toBe(false);
   });
 
-  it("rejects an invalid price with more than 2 decimals", () => {
-    const result = optimizeSellTrade(10, "1.234");
-    expect(result.ok).toBe(false);
+  it("accepts a higher-precision exact price (no 2-decimal cap in the calc path)", () => {
+    // 1.234 = 617/500. Stock 1000 -> floor(1000/500) = 2 batches.
+    const result = expectOk(optimizeSellTrade(1000, cpi("1.234")));
+    expect(result.sell).toBe(1000);
+    expect(result.receive).toBe(1234);
+    expect(result.remainder).toBe(0);
   });
 
-  // Task 21 regression: stock 10, price 0.5/item => sell all 10, receive 5.
-  it("Task 21: selling with a manually entered sub-1 price (0.5)", () => {
-    const result = expectOk(optimizeSellTrade(10, "0.5"));
+  it("selling with a sub-1 price (0.5) sells all 10 for 5", () => {
+    const result = expectOk(optimizeSellTrade(10, cpi("0.5")));
     expect(result.sell).toBe(10);
     expect(result.remainder).toBe(0);
     expect(result.receive).toBe(5);
   });
 
-  it("Task 21: selling with leading-decimal notation (.5) matches leading-zero (0.5)", () => {
-    const dotForm = expectOk(optimizeSellTrade(10, ".5"));
-    const zeroForm = expectOk(optimizeSellTrade(10, "0.5"));
+  it("leading-decimal notation (.5) matches leading-zero (0.5)", () => {
+    const dotForm = expectOk(optimizeSellTrade(10, cpi(".5")));
+    const zeroForm = expectOk(optimizeSellTrade(10, cpi("0.5")));
     expect(dotForm).toEqual(zeroForm);
   });
 
   it.each(["0.25", "0.1", "0.01"])(
-    "Task 21: selling with a manually entered sub-1 price (%s) parses and computes without error",
+    "selling with a manually entered sub-1 price (%s) parses and computes without error",
     (price) => {
-      const result = optimizeSellTrade(10, price);
+      const result = optimizeSellTrade(10, cpi(price));
       expect(result.ok).toBe(true);
     },
   );
@@ -438,7 +473,6 @@ describe("quickMultiply", () => {
 
   it("rounds a non-exact product to 2 decimals (round-half-up)", () => {
     const result = expectOk(quickMultiply("1", "0.335"));
-    // 1 * 0.335 = 0.335 -> rounds to 0.34
     expect(result).toBe("0.34");
   });
 
@@ -473,7 +507,7 @@ describe("quickMultiply", () => {
   });
 });
 
-// --- Task 21B Part 2: deterministic Buying/Selling matrices ---------------
+// --- Deterministic Buying/Selling matrices + exact-ratio invariants --------
 
 const MATRIX_BUDGETS = [1, 2, 5, 10, 21, 100, 1000];
 const MATRIX_STOCKS = [1, 2, 3, 5, 10, 21, 108, 999, 1000];
@@ -485,99 +519,87 @@ const MATRIX_PRICES = [
 const BUY_MATRIX = MATRIX_BUDGETS.flatMap((budget) => MATRIX_PRICES.map((price) => [budget, price] as const));
 const SELL_MATRIX = MATRIX_STOCKS.flatMap((stock) => MATRIX_PRICES.map((price) => [stock, price] as const));
 
-describe("Task 21B: Buying — deterministic matrix + invariants", () => {
+describe("Buying — deterministic matrix + exact-ratio invariants", () => {
   it.each(BUY_MATRIX)("budget %s, price %s/item", (budget, price) => {
-    const result = expectOk(optimizeBuyTrade(budget, price));
+    const result = expectOk(optimizeBuyTrade(budget, cpi(price)));
     const expected = expectedBuy(budget, price);
 
     // Matches the independent oracle exactly.
     expect(result.spend).toBe(expected.spend);
     expect(result.receive).toBe(expected.receive);
+    expect(result.remainingCurrency).toBe(expected.remainingCurrency);
 
-    const priceCents = centsFromDecimalStr(price);
-    const budgetCents = BigInt(budget) * 100n;
-    const receive = BigInt(result.receive);
+    const { C, I } = reducedUnitFromPrice(price);
     const spend = BigInt(result.spend);
+    const receive = BigInt(result.receive);
 
-    // spend/receive are whole amounts and spend never exceeds the budget.
+    // Whole amounts, spend within budget.
     expect(Number.isInteger(result.spend)).toBe(true);
     expect(Number.isInteger(result.receive)).toBe(true);
-    expect(spend).toBeLessThanOrEqual(budgetCents / 100n);
+    expect(spend).toBeLessThanOrEqual(BigInt(budget));
 
-    // Reported spend satisfies the exact listing ratio (floor of receive * price).
-    expect(spend).toBe((receive * priceCents) / 100n);
+    // Exact-ratio invariant: spend * itemAmount === receive * currencyAmount.
+    expect(spend * I).toBe(receive * C);
 
-    // Maximality: no larger whole-item receive quantity fits the same budget.
-    expect((receive + 1n) * priceCents).toBeGreaterThan(budgetCents);
+    // Maximality: one more whole unit would exceed the budget.
+    expect(spend + C).toBeGreaterThan(BigInt(budget));
+
+    // Spend + remaining reconstructs the budget.
+    expect(spend + BigInt(result.remainingCurrency)).toBe(BigInt(budget));
   });
 
   it("awkward examples with leftover budget compute the documented results", () => {
-    expect(expectOk(optimizeBuyTrade(10, "3"))).toMatchObject({ spend: 9, receive: 3 });
-    expect(expectOk(optimizeBuyTrade(21, "2.5"))).toMatchObject({ spend: 20, receive: 8 });
-    expect(expectOk(optimizeBuyTrade(5, "0.67"))).toMatchObject(expectedBuy(5, "0.67"));
-    expect(expectOk(optimizeBuyTrade(1, "0.33"))).toMatchObject(expectedBuy(1, "0.33"));
+    expect(expectOk(optimizeBuyTrade(10, cpi("3")))).toMatchObject({ spend: 9, receive: 3 });
+    expect(expectOk(optimizeBuyTrade(21, cpi("2.5")))).toMatchObject({ spend: 20, receive: 8 });
+    expect(expectOk(optimizeBuyTrade(5, cpi("0.67")))).toMatchObject(expectedBuy(5, "0.67"));
+    expect(expectOk(optimizeBuyTrade(1, cpi("0.33")))).toMatchObject(expectedBuy(1, "0.33"));
   });
 
   it(".5 and 0.5 produce identical results across every matrix budget", () => {
     for (const budget of MATRIX_BUDGETS) {
-      expect(expectOk(optimizeBuyTrade(budget, ".5"))).toEqual(expectOk(optimizeBuyTrade(budget, "0.5")));
-    }
-  });
-
-  it("price-per-item and its exact items-per-currency reciprocal produce identical results", () => {
-    for (const { price, itemsPerCurrency } of EXACT_RECIPROCALS) {
-      const derivedPrice = centsToPriceStr(priceCentsFromItemsPerCurrency(itemsPerCurrency));
-      for (const budget of MATRIX_BUDGETS) {
-        expect(expectOk(optimizeBuyTrade(budget, price))).toEqual(expectOk(optimizeBuyTrade(budget, derivedPrice)));
-      }
+      expect(expectOk(optimizeBuyTrade(budget, cpi(".5")))).toEqual(expectOk(optimizeBuyTrade(budget, cpi("0.5"))));
     }
   });
 });
 
-describe("Task 21B: Selling — deterministic matrix + invariants", () => {
+describe("Selling — deterministic matrix + exact-ratio invariants", () => {
   it.each(SELL_MATRIX)("stock %s, price %s/item", (stock, price) => {
-    const result = expectOk(optimizeSellTrade(stock, price));
+    const result = expectOk(optimizeSellTrade(stock, cpi(price)));
     const expected = expectedSell(stock, price);
 
     expect(result.sell).toBe(expected.sell);
     expect(result.remainder).toBe(expected.remainder);
     expect(result.receive).toBe(expected.receive);
 
-    const priceCents = centsFromDecimalStr(price);
+    const { C, I } = reducedUnitFromPrice(price);
     const sell = BigInt(result.sell);
     const remainder = BigInt(result.remainder);
     const receive = BigInt(result.receive);
     const stockBig = BigInt(stock);
 
-    // Whole amounts, non-negative, and sell + remainder reconstruct the stock.
+    // Whole amounts, non-negative, sell + remainder reconstruct the stock.
     expect(sell).toBeGreaterThanOrEqual(0n);
     expect(remainder).toBeGreaterThanOrEqual(0n);
     expect(receive).toBeGreaterThanOrEqual(0n);
     expect(sell + remainder).toBe(stockBig);
 
-    // No item is handed over without contributing to the received amount:
-    // selling the full stock floors to the same whole-currency receive.
-    expect((stockBig * priceCents) / 100n).toBe(receive);
+    // Exact-ratio invariant: sell * currencyAmount === receive * itemAmount.
+    expect(sell * C).toBe(receive * I);
 
-    // sell is the minimum quantity whose value covers receive (a ceiling):
-    // one fewer item would fall short, `sell` itself covers or exceeds it.
-    expect((sell * priceCents) / 100n).toBeGreaterThanOrEqual(receive);
-    if (sell > 0n) {
-      expect(((sell - 1n) * priceCents) / 100n).toBeLessThan(receive);
-    }
+    // Maximality: one more whole unit would exceed the stock.
+    expect(sell + I).toBeGreaterThan(stockBig);
   });
 
   it("awkward examples with a leftover remainder compute the documented results", () => {
-    expect(expectOk(optimizeSellTrade(10, "0.25"))).toMatchObject(expectedSell(10, "0.25"));
-    expect(expectOk(optimizeSellTrade(10, "0.33"))).toMatchObject(expectedSell(10, "0.33"));
-    expect(expectOk(optimizeSellTrade(21, "0.5"))).toMatchObject(expectedSell(21, "0.5"));
-    expect(expectOk(optimizeSellTrade(3, "0.1"))).toMatchObject(expectedSell(3, "0.1"));
-    expect(expectOk(optimizeSellTrade(999, "0.67"))).toMatchObject(expectedSell(999, "0.67"));
+    expect(expectOk(optimizeSellTrade(10, cpi("0.25")))).toMatchObject(expectedSell(10, "0.25"));
+    expect(expectOk(optimizeSellTrade(10, cpi("0.33")))).toMatchObject(expectedSell(10, "0.33"));
+    expect(expectOk(optimizeSellTrade(21, cpi("0.5")))).toMatchObject(expectedSell(21, "0.5"));
+    expect(expectOk(optimizeSellTrade(3, cpi("0.1")))).toMatchObject(expectedSell(3, "0.1"));
+    expect(expectOk(optimizeSellTrade(999, cpi("0.67")))).toMatchObject(expectedSell(999, "0.67"));
   });
 
-  it("the known Task 20 regression remains correct: stock 108 at 5 items/currency", () => {
-    // 5 items per currency == price 0.20/item (an exact reciprocal).
-    const result = expectOk(optimizeSellTrade(108, "0.20"));
+  it("stock 108 at 5 items/currency (0.20/item) leaves 3 unsellable", () => {
+    const result = expectOk(optimizeSellTrade(108, cpi("0.20")));
     expect(result.sell).toBe(105);
     expect(result.receive).toBe(21);
     expect(result.remainder).toBe(3);
@@ -585,45 +607,61 @@ describe("Task 21B: Selling — deterministic matrix + invariants", () => {
 
   it(".5 and 0.5 produce identical results across every matrix stock level", () => {
     for (const stock of MATRIX_STOCKS) {
-      expect(expectOk(optimizeSellTrade(stock, ".5"))).toEqual(expectOk(optimizeSellTrade(stock, "0.5")));
-    }
-  });
-
-  it("price-per-item and its exact items-per-currency reciprocal produce identical results", () => {
-    for (const { price, itemsPerCurrency } of EXACT_RECIPROCALS) {
-      const derivedPrice = centsToPriceStr(priceCentsFromItemsPerCurrency(itemsPerCurrency));
-      for (const stock of MATRIX_STOCKS) {
-        expect(expectOk(optimizeSellTrade(stock, price))).toEqual(expectOk(optimizeSellTrade(stock, derivedPrice)));
-      }
+      expect(expectOk(optimizeSellTrade(stock, cpi(".5")))).toEqual(expectOk(optimizeSellTrade(stock, cpi("0.5"))));
     }
   });
 });
 
-describe("Task 21B Part 4: formatting invariants", () => {
-  const NUMERIC_2DP = /^-?\d+\.\d{2}$/; // no NaN, no Infinity, no scientific notation, exactly 2dp
+// --- Boundary behaviour ----------------------------------------------------
 
-  it("optimizeBuyTrade never reports a non-numeric or malformed approxRate", () => {
-    for (const [budget, price] of BUY_MATRIX) {
-      const result = expectOk(optimizeBuyTrade(budget, price));
-      expect(result.approxRate).toMatch(NUMERIC_2DP);
-      expect(result.approxRate).not.toBe("-0.00");
-    }
+describe("boundary behaviour around the exact trade unit", () => {
+  // 7.25 = 29 currency / 4 items.
+  it("budget below one unit yields nothing", () => {
+    const result = expectOk(optimizeBuyTrade(28, cpi("7.25")));
+    expect(result).toMatchObject({ spend: 0, receive: 0, remainingCurrency: 28 });
   });
 
-  it("optimizeSellTrade never reports a non-numeric or malformed approxRate", () => {
-    for (const [stock, price] of SELL_MATRIX) {
-      const result = expectOk(optimizeSellTrade(stock, price));
-      expect(result.approxRate).toMatch(NUMERIC_2DP);
-      expect(result.approxRate).not.toBe("-0.00");
-    }
+  it("budget of exactly one unit yields exactly one unit", () => {
+    const result = expectOk(optimizeBuyTrade(29, cpi("7.25")));
+    expect(result).toMatchObject({ spend: 29, receive: 4, remainingCurrency: 0 });
   });
 
-  it("quickMultiply and convertCurrency never produce NaN/Infinity/scientific notation", () => {
-    expect(expectOk(quickMultiply("99.99", "1000"))).toMatch(NUMERIC_2DP);
-    expect(expectOk(quickMultiply("0.01", "0.01"))).toMatch(NUMERIC_2DP);
-    expect(expectOk(convertCurrency({ amount: "1000", exchangeRate: "0.01", direction: "chaosToDivine" }))).toMatch(
-      NUMERIC_2DP,
-    );
+  it("budget one below the next multiple stops at the current multiple", () => {
+    // 2 units = 58; one below the 3rd unit (87) is 86.
+    const result = expectOk(optimizeBuyTrade(86, cpi("7.25")));
+    expect(result).toMatchObject({ spend: 58, receive: 8, remainingCurrency: 28 });
+  });
+
+  it("budget of an exact multiple uses all of it", () => {
+    const result = expectOk(optimizeBuyTrade(87, cpi("7.25")));
+    expect(result).toMatchObject({ spend: 87, receive: 12, remainingCurrency: 0 });
+  });
+
+  // Selling with 1.53 items/currency = 100 currency / 153 items.
+  it("stock below one unit sells nothing", () => {
+    const result = expectOk(optimizeSellTrade(152, ipc("1.53")));
+    expect(result).toMatchObject({ sell: 0, receive: 0, remainder: 152 });
+  });
+
+  it("stock of exactly one unit sells one unit", () => {
+    const result = expectOk(optimizeSellTrade(153, ipc("1.53")));
+    expect(result).toMatchObject({ sell: 153, receive: 100, remainder: 0 });
+  });
+
+  it("stock one below the next multiple stops at the current multiple", () => {
+    // 2 units = 306; one below the 3rd (459) is 458.
+    const result = expectOk(optimizeSellTrade(458, ipc("1.53")));
+    expect(result).toMatchObject({ sell: 306, receive: 200, remainder: 152 });
+  });
+
+  it("handles very large BigInt-safe values without overflow or float error", () => {
+    // Budget 1,000,000,000 at 7.25 (29/4): floor(1e9 / 29) = 34,482,758 units.
+    const result = expectOk(optimizeBuyTrade(1_000_000_000, cpi("7.25")));
+    expect(result.spend).toBe(34_482_758 * 29);
+    expect(result.receive).toBe(34_482_758 * 4);
+    // Still exact and within Number's safe integer range.
+    expect(Number.isSafeInteger(result.receive)).toBe(true);
+    expect(BigInt(result.spend) * 4n).toBe(BigInt(result.receive) * 29n);
   });
 });
 
@@ -641,18 +679,18 @@ describe("hasUsableTradeResult", () => {
   });
 
   it("treats a sell that yields no currency as unavailable, matching buy", () => {
-    // 1 item at 0.50 each: total value 0.50 floors to 0 currency received.
-    const sell = expectOk<SellTradeResult>(optimizeSellTrade("1", "0.50"));
+    // 1 item at 0.50 (1 currency / 2 items): can't form a whole unit.
+    const sell = expectOk<SellTradeResult>(optimizeSellTrade("1", cpi("0.50")));
     expect(sell.receive).toBe(0);
     expect(hasUsableTradeResult(sell)).toBe(false);
 
-    // Parity with buying: 1 currency at 2.00/item can't afford a single item.
-    const buy = expectOk<BuyTradeResult>(optimizeBuyTrade("1", "2.00"));
+    // Parity with buying: 1 currency at 2.00/item can't afford a single unit.
+    const buy = expectOk<BuyTradeResult>(optimizeBuyTrade("1", cpi("2.00")));
     expect(buy.receive).toBe(0);
     expect(hasUsableTradeResult(buy)).toBe(false);
 
     // A sell that does earn currency is still usable.
-    const okSell = expectOk<SellTradeResult>(optimizeSellTrade("2", "1.00"));
+    const okSell = expectOk<SellTradeResult>(optimizeSellTrade("2", cpi("1.00")));
     expect(okSell.receive).toBeGreaterThan(0);
     expect(hasUsableTradeResult(okSell)).toBe(true);
   });

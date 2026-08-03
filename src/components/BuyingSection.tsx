@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { hasUsableTradeResult, optimizeBuyTrade, type BuyTradeResult } from "../lib/calculator";
+import {
+  hasUsableTradeResult,
+  optimizeBuyTrade,
+  type BuyTradeResult,
+  type ExactExchangeRate,
+} from "../lib/calculator";
 import { sanitizeWholeNumberInput } from "../lib/inputSanitize";
 import { selectAllOnFocus } from "../lib/selectAllOnFocus";
 import type { useClipboardQueue } from "../lib/clipboardQueue";
@@ -13,19 +18,19 @@ interface BuyingSectionProps {
 
 export function BuyingSection({ clipboardQueue }: BuyingSectionProps) {
   const [currencyToSpend, setCurrencyToSpend] = useState("");
-  const [pricePerItem, setPricePerItem] = useState<string | null>(null);
+  const [rate, setRate] = useState<ExactExchangeRate | null>(null);
   const [result, setResult] = useState<BuyTradeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyFailed, setCopyFailed] = useState(false);
   const armedPairRef = useRef<{ spend: number; receive: number } | null>(null);
 
   useEffect(() => {
-    if (currencyToSpend === "" || pricePerItem === null) {
+    if (currencyToSpend === "" || rate === null) {
       setResult(null);
       setError(null);
       return;
     }
-    const outcome = optimizeBuyTrade(currencyToSpend, pricePerItem);
+    const outcome = optimizeBuyTrade(currencyToSpend, rate);
     if (outcome.ok) {
       setResult(outcome.value);
       setError(null);
@@ -33,7 +38,7 @@ export function BuyingSection({ clipboardQueue }: BuyingSectionProps) {
       setResult(null);
       setError(outcome.error);
     }
-  }, [currencyToSpend, pricePerItem]);
+  }, [currencyToSpend, rate]);
 
   useEffect(() => {
     const armed = clipboardQueue.status.armedForSection === SECTION_ID;
@@ -87,7 +92,7 @@ export function BuyingSection({ clipboardQueue }: BuyingSectionProps) {
         />
       </label>
 
-      <ExchangeRateInput onPriceChange={setPricePerItem} />
+      <ExchangeRateInput onRateChange={setRate} />
 
       {error && <p className="error">{error}</p>}
 
