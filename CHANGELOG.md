@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Releases are published as Windows prereleases on the
 [GitHub Releases](https://github.com/FaustusFriend/Faustus-Friend/releases) page.
 
+## [0.1.4] - 2026-08-12
+
+### Fixed
+
+- Trade Maximizer calculations now preserve the exact entered exchange ratio.
+  Buying and Selling results use whole multiples of the reduced trade ratio
+  instead of approximating the requested price.
+- Reciprocal Items/Currency rates are no longer rounded before calculation.
+- Switching between Price/Item and Items/Currency no longer changes the
+  authoritative exchange rate.
+
 ## [0.1.3] - 2026-07-17
 
 ### Added
